@@ -10,7 +10,7 @@ import pickle
 import hashlib
 
 
-class Universal_json_Segmentation_Dataset:
+class JsonHandler:
     def __init__(self, params_dict):
         self.json_file_path = params_dict.get("json_file_path")
         self.delete_list = params_dict.get("delete_list")
@@ -249,75 +249,6 @@ class Universal_json_Segmentation_Dataset:
             ) as pix_Total:
                 pickle.dump(self.pixel_TotalVal, pix_Total)
 
-    def show_me_contours(self, idx):
-        gray_image, mask, rgb_image = self.__getitem__(idx, contures=True)
-        plt.rcParams["figure.figsize"] = [12, 12]
-        plt.rcParams["figure.autolayout"] = True
-        k = 0
-        for i in range(np.shape(mask)[0]):
-            contours, h = cv2.findContours(
-                mask[i].astype(int).astype(np.uint8),
-                cv2.RETR_TREE,
-                cv2.CHAIN_APPROX_SIMPLE,
-            )
-            # print("contours", contours)
-            rgb_image = cv2.drawContours(
-                rgb_image,
-                contours,
-                -1,
-                (self.colors[i][0][0], self.colors[i][0][1], self.colors[i][0][2]),
-                2,
-            )
-
-            if np.max(mask[i]) == 1 and i != 0:
-                text = self.list_of_name_out_classes[i] + " " + str(np.max(mask[i]))
-                # для 255 снимка такой вывод
-                # print("i", i) # i 3
-                # print("list_of_name_out_classes", self.list_of_name_out_classes) # ['фон', '1', '2', '3', '4', '5']
-                # print("list_of_name_out_classes[i]", self.list_of_name_out_classes[i]) # 3
-                # print("text", text) # 1 выводит
-                plt.text(
-                    2000,
-                    k,
-                    text,
-                    color=(
-                        self.colors[i][0][0] / 255,
-                        self.colors[i][0][1] / 255,
-                        self.colors[i][0][2] / 255,
-                    ),
-                )
-                # так попробую
-                cv2.putText(
-                    rgb_image,
-                    f"label class: {text}",
-                    (10, 20),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.5,
-                    (0, 0, 255),
-                    1,
-                    cv2.LINE_AA,
-                )
-                k += 50
-
-        # сохраню фотки, сделаю папки по классам
-        # если патологии нет, то ошибка будет, потому что text не существует
-        # print("text", text[0])
-        if not os.path.exists(
-            "/home/imran-nasyrov/sct_project/sct_data/output_images/" + text[0]
-        ):
-            os.mkdir(
-                "/home/imran-nasyrov/sct_project/sct_data/output_images/" + text[0]
-            )
-
-        all_files = get_all_files(
-            "/home/imran-nasyrov/sct_project/sct_data/output_images/" + text[0]
-        )
-        if len(all_files) <= 5:
-            cv2.imwrite(
-                f"/home/imran-nasyrov/sct_project/sct_data/output_images/{text[0]}/output_image_{idx}.jpg",
-                rgb_image,
-            )
-
     def to_out_classes(self, mask):
         size = np.shape(mask)
         new_mask = np.zeros((len(self.out_classes) + 1, size[1], size[2]))
@@ -374,7 +305,7 @@ class Universal_json_Segmentation_Dataset:
             mask = torchvision.transforms.functional.resize(
                 torch.tensor(mask), (self.resize)
             )
-            if self.dataloader == False:
+            if not self.dataloader:
                 image = torch.unsqueeze(image, 0)
                 image = (image - image.min()) / (image.max() - image.min() + 0.00000001)
                 mask = torch.unsqueeze(mask, 0)
@@ -398,11 +329,7 @@ class Universal_json_Segmentation_Dataset:
             # этот иф вызывается для индекса картики который хочу нарисовать, для остальных верхний вызывается
             # ну это потому что в шоу контрс getitem вызывается от contures=True так что все норм
             # print("мы внизу")
-            return (
-                gray_image,
-                mask,
-                rgb_image,
-            )  # , anns ######################################### тут anns не было
+            return (gray_image, mask, rgb_image)
 
 
 SCT_base_classes = [
