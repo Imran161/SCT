@@ -11,7 +11,7 @@ from torch.optim import Adam, AdamW
 from sklearn.exceptions import UndefinedMetricWarning
 import warnings
 import itertools
-from Universal_json_Segmentation_Dataset import Universal_json_Segmentation_Dataset
+from json_handler import JsonHandler
 from metrics import Detection_metrics
 from sct_val import test_model
 from utils import set_seed
@@ -37,7 +37,7 @@ def convert_from_coco(path, probs):
     # print("number_papki", number_papki) # FINAL_CONVERT
     # print("second_chislo", second_chislo) # 100604476
 
-    sct_coco = Universal_json_Segmentation_Dataset(
+    sct_coco = JsonHandler(
         json_file_path=path + "/",
         delete_list=[],
         base_classes=SCT_base_classes,
@@ -124,7 +124,7 @@ class COCODataLoader:
         self.batch_size = batch_size
 
     def convert_from_coco(self, path, probs):
-        sct_coco = Universal_json_Segmentation_Dataset(
+        sct_coco = JsonHandler(
             json_file_path=path + "/",
             delete_list=[],
             base_classes=SCT_base_classes,

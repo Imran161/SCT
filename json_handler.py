@@ -390,7 +390,7 @@ def save_to_papki(path, number_papki, second_chislo):
     # print("number_papki", number_papki)
     # print("second_chislo", second_chislo)
 
-    sct_coco = Universal_json_Segmentation_Dataset(
+    sct_coco = JsonHandler(
         json_file_path=path + "/",  # + "170505619"
         delete_list=[],
         base_classes=SCT_base_classes,
