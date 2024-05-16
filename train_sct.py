@@ -1,5 +1,3 @@
-print("Привет")
-
 import cv2
 import skimage.io as io
 import json
@@ -41,6 +39,7 @@ from torchvision.datasets import ImageFolder
 import itertools
 from typing import Tuple, Optional, List, Any
 
+from MedSAM.segment_anything import sam_model_registry
 
 # /home/imran/Документы/Innopolis/First_data_test/segmentation_server.py
 from segmentation import Universal_json_Segmentation_Dataset
@@ -293,7 +292,7 @@ def train_model(model,
                 experiment_name,
                 all_class_weights,
                 alpha, 
-                use_opt_pixel_weight=False 
+                use_opt_pixel_weight 
                 ):
     
     train_predict_path = f"/home/imran-nasyrov/sct_project/sct_data/predict_test/train"
@@ -606,19 +605,37 @@ class Weight_opt_class:
             pos_coef = 1
             
             if recall[image_class].item()!=0 and precession[image_class].item()!=0:
+                print("recall и precision != 0")
+                print("recall[image_class].item()", recall[image_class].item())
+                print("precession[image_class].item()", precession[image_class].item())
                 
                 neg_coef = (1/b)*recall[image_class].item()/F1Score[image_class].item()
                 pos_coef = (b)*precession[image_class].item()/F1Score[image_class].item()
+                print("neg_coef", neg_coef)
+                print("pos_coef", pos_coef)
 
                 xsd = recall[image_class].item()/precession[image_class].item()
+                print("xsd", xsd)
                 if xsd>0.9 and xsd<1.1:
                     neg_coef = 1
                     pos_coef = 1
-                class_coef = pos_coef   
+                class_coef = pos_coef 
+                print("вот после изменений")  
+                print("neg_coef", neg_coef)
+                print("pos_coef", pos_coef)
+                print("class_coef", class_coef)
+                
             else:
+                print("recall или precision == 0")
+                print("recall[image_class].item()", recall[image_class].item())
+                print("precession[image_class].item()", precession[image_class].item())
+                
                 pos_coef = 2.0
                 class_coef = 2.0
                 neg_coef = 0.5
+                print("neg_coef", neg_coef)
+                print("pos_coef", pos_coef)
+                print("class_coef", class_coef)
             
             if pixel_all_class_weights is not None:
                 pixel_all_class_weights[0][image_class]*=pos_coef
@@ -653,6 +670,10 @@ if __name__ == "__main__":
     print(device)
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
     
+    # потом можно попробовать трансформер обучить
+    model = smp.FPN(encoder_name="mit_b5", encoder_depth = 5, encoder_weights = "imagenet", in_channels = 1, classes=num_classes) 
+    # encoder_depth = 5 у них написать что с FPN только с таким параметром работает
+    
     model = smp.FPN(encoder_name="efficientnet-b7", encoder_weights = "imagenet", in_channels = 1, classes=num_classes)
     learning_rate = 3e-4
     num_epochs = 120
@@ -670,7 +691,7 @@ if __name__ == "__main__":
     use_class_weight = True
     use_pixel_weight = True
     use_pixel_opt = True
-    power = "strong"
+    power = "strong" # 3.1 забыл написать
    
     
     exp_setup = ExperimentSetup(train_loader, TotalTrain, pixel_TotalTrain, batch_size, num_classes)
@@ -678,9 +699,9 @@ if __name__ == "__main__":
     all_class_weights, pixel_all_class_weights, experiment_name, criterion = \
         exp_setup.setup_experiment(use_class_weight, use_pixel_weight, use_pixel_opt, power)
  
-    # train_model(model, optimizer, criterion, lr_sched, num_epochs, train_loader, val_loader, device,
-    #             num_classes, experiment_name, all_class_weights=all_class_weights, 
-    #             alpha=pixel_all_class_weights, use_opt_pixel_weight=use_pixel_opt) 
+    train_model(model, optimizer, criterion, lr_sched, num_epochs, train_loader, val_loader, device,
+                num_classes, experiment_name, all_class_weights=all_class_weights, 
+                alpha=pixel_all_class_weights, use_opt_pixel_weight=use_pixel_opt) 
   
     # это картинки нарисует предсказанные
    
