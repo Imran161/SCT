@@ -126,11 +126,10 @@ if __name__ == "__main__":
     visualizer.save_to_papki(path, number_papki, second_chislo, sct_coco)
 
 
-# короче в классе рисовашка была такая, оттуда убрал, а потом понял что мне
-# вообще и этот файл не нужен, потому что у меня есть sct_val.py
+короче в классе рисовашка была такая, оттуда убрал, а потом понял что мне
+вообще и этот файл не нужен, потому что у меня есть sct_val.py
 
-
-    def show_me_contours(self, idx):
+   def show_me_contours(self, idx):
         gray_image, mask, rgb_image = self.__getitem__(idx, contures=True)
         plt.rcParams["figure.figsize"] = [12, 12]
         plt.rcParams["figure.autolayout"] = True

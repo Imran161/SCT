@@ -92,7 +92,7 @@ class JsonHandler:
             my_str = (
                 str(cl["id"])
                 + cl["name"]
-                + cl["name"]
+                # + cl["name"]
                 + str(cl["summable_masks"])
                 + str(cl["subtractive_masks"])
             )
@@ -264,16 +264,13 @@ class JsonHandler:
         return new_mask
 
     def __getitem__(self, idx, contures=False):
-        # print("idx", idx)
         images_description = self.coco.loadImgs(idx)[0]
         image_path = self.json_file_path + "images/" + images_description["file_name"]
-        # print("image_path", image_path)
         rgb_image = cv2.imread(image_path)
         gray_image = cv2.cvtColor(rgb_image, cv2.COLOR_BGR2GRAY)
 
         anns_ids = self.coco.getAnnIds(imgIds=idx, catIds=self.catIDs, iscrowd=None)
         anns = self.coco.loadAnns(anns_ids)
-        # для чего вот эта размерность? len(self.catIDs)-len(self.delete_list)+1 это кол-во классов
         mask = np.zeros(
             (
                 len(self.catIDs) - len(self.delete_list) + 1,
@@ -283,14 +280,7 @@ class JsonHandler:
         )
 
         for ann in anns:
-            # print("ann", ann)
-            # вот эту строку убрал она странная какая-то
             cat = self.coco.loadCats(ann["category_id"])[0]
-            # cat = ann["category_id"] # и сделал так, все заработало, только пока нарисовался диком но без маски
-
-            # тут вот этот if добавил, без него ошибка была
-            # if len(self.delete_list) > 0:
-            # print("cat[name]", cat)
             if cat["name"] not in self.delete_list:
                 class_mask = self.coco.annToMask(ann)
                 class_idx = self.cats_to_classes[ann["category_id"]]
@@ -299,7 +289,6 @@ class JsonHandler:
         mask = self.to_out_classes(mask)
 
         if self.resize is not None and not contures:  # без not и == False было
-            # print("мы в этом ифе")
             image = torch.unsqueeze(torch.tensor(gray_image), 0)
             image = torchvision.transforms.functional.resize(image, (self.resize))
             mask = torchvision.transforms.functional.resize(
@@ -432,10 +421,10 @@ def save_to_papki(path, number_papki, second_chislo):
 
     list_of_name_out_classes = [
         "0",
-        "Внутримозговое кровозлияние",
-        "Субарахноидальное кровозлияние",
-        "Cубдуральное кровозлияние",
-        "Эпидуральное кровозлияние",
+        "Внутримозговое кровоизлияние",
+        "Субарахноидальное кровоизлияние",
+        "Cубдуральное кровоизлияние",
+        "Эпидуральное кровоизлияние",
     ]
 
     # list_of_name_out_classes = ["0","1","2","3",'4']
