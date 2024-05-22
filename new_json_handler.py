@@ -53,8 +53,50 @@ class JsonHandler:
         self._pixel_total_train = None
         self._pixel_total_val = None
 
-        self._check_create_train_val_list()
-        self._check_create_weight()
+        # self._check_create_train_val_list()
+        # self._check_create_weight()
+
+    @property
+    def train_list(self):
+        if self._train_list is None:
+            self._check_create_train_val_list()
+        return self._train_list
+
+    @property
+    def val_list(self):
+        if self._val_list is None:
+            self._check_create_train_val_list()
+        return self._val_list
+
+    @property
+    def all_img_list(self):
+        if self._all_img_list is None:
+            self._check_create_train_val_list()
+        return self._all_img_list
+
+    @property
+    def total_train(self):
+        if self._total_train is None:
+            self._check_create_weight()
+        return self._total_train
+
+    @property
+    def total_val(self):
+        if self._total_val is None:
+            self._check_create_weight()
+        return self._total_val
+
+    @property
+    def pixel_total_train(self):
+        if self._pixel_total_train is None:
+            self._check_create_weight()
+        return self._pixel_total_train
+
+    @property
+    def pixel_total_val(self):
+        if self._pixel_total_val is None:
+            self._check_create_weight()
+        return self._pixel_total_val
 
     def map_cats_to_classes(self):
         cats_to_classes = {}

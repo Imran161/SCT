@@ -37,6 +37,7 @@ def convert_from_coco(path, probs):
     # print("number_papki", number_papki) # FINAL_CONVERT
     # print("second_chislo", second_chislo) # 100604476
 
+    # вот так было для старого класса
     sct_coco = JsonHandler(
         json_file_path=path + "/",
         delete_list=[],
@@ -48,6 +49,20 @@ def convert_from_coco(path, probs):
         recalculate=False,  # оставить True
         train_val_probs=probs,
     )
+
+    # params = {
+    #     "json_file_path": path,
+    #     "delete_list": [],
+    #     "base_classes": SCT_base_classes,
+    #     "out_classes": SCT_out_classes,
+    #     "dataloader": False,
+    #     "resize": (256, 256),
+    #     "recalculate": False,
+    #     "delete_null": False,
+    #     "train_val_probs": probs,
+    # }
+    #
+    # sct_coco = JsonHandler(params)
 
     return sct_coco
 
@@ -563,7 +578,7 @@ class Weight_opt_class:
                 pixel_all_class_weights[1][image_class] *= neg_coef
                 pixel_all_class_weights[2][image_class] *= class_coef
 
-            return pixel_all_class_weights
+        return pixel_all_class_weights
 
 
 if __name__ == "__main__":
