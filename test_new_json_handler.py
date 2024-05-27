@@ -104,7 +104,8 @@ if __name__ == "__main__":
         "resize": (256, 256),
         "recalculate": False,
         "delete_null": False,
-        "train_val_probs": 80,
+        # "train_val_probs": 80, он тут не нужен,
+        # тк в make_dataloaders передается параметр для разделения
     }
 
     handler = JsonHandler(params)

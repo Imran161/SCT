@@ -175,7 +175,7 @@ class JsonHandler:
                     break
 
             if save:
-                if random.randint(1, 100) >= self.train_val_probs:
+                if random.randint(1, 100) > self.train_val_probs:  # было >=
                     self._val_list.append(img_id)
                 else:
                     self._train_list.append(img_id)

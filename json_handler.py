@@ -149,7 +149,7 @@ class JsonHandler:
                 if save:
                     # try:
                     x = random.randint(1, 100)
-                    if x >= self.train_val_probs:  # 80
+                    if x > self.train_val_probs:  # тут убрал =, было >=
                         val_list.append(img_index)
                     else:
                         train_list.append(img_index)
