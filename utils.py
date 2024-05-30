@@ -19,6 +19,13 @@ def set_seed(seed):
     torch.backends.cudnn.enabled = False
 
 
+def get_direct_subdirectories(directory):
+    subdirectories = [
+        d for d in os.listdir(directory) if os.path.isdir(os.path.join(directory, d))
+    ]
+    return [os.path.join(directory, subdir) for subdir in subdirectories]
+
+
 SCT_base_classes = [
     {"id": 1, "name": "1", "summable_masks": [1], "subtractive_masks": []},
     {"id": 2, "name": "2", "summable_masks": [2], "subtractive_masks": []},

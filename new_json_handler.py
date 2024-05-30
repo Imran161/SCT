@@ -11,7 +11,7 @@ from pycocotools import mask as maskUtils
 
 
 class JsonHandler:
-    def __init__(self, params_dict):
+    def __init__(self, params_dict: dict, split_category: str):
         self.json_file_path = params_dict.get("json_file_path", "")
         self.delete_list = params_dict.get("delete_list", [])
         self.base_classes = params_dict.get("base_classes", [])
@@ -20,7 +20,9 @@ class JsonHandler:
         self.resize = params_dict.get("resize", None)
         self.recalculate = params_dict.get("recalculate", False)
         self.delete_null = params_dict.get("delete_null", False)
-        self.train_val_probs = params_dict.get("train_val_probs", 80)
+        # self.train_val_probs = params_dict.get("train_val_probs", 80)
+
+        self.split_category = split_category
 
         if self.json_file_path and self.json_file_path[-1] != "/":
             self.json_file_path += "/"
@@ -175,40 +177,13 @@ class JsonHandler:
                     break
 
             if save:
-                if random.randint(1, 100) > self.train_val_probs:  # было >=
+                if self.split_category == "val":
                     self._val_list.append(img_id)
                 else:
                     self._train_list.append(img_id)
                 self._all_img_list.append(img_id)
 
         self._save_lists()
-
-    # def _generate_train_val_lists(self):
-    #     imgIds = self.coco.getImgIds()
-    #     self._train_list, self._val_list, self._all_img_list = [], [], []
-    #
-    #     for img_id in imgIds:
-    #         anns_ids = self.coco.getAnnIds(imgIds=img_id, catIds=self.catIDs)
-    #         anns = self.coco.loadAnns(anns_ids)
-    #         save = not (self.delete_null and len(anns) == 0)
-    #
-    #         if save:
-    #             for ann in anns:
-    #                 if (
-    #                     self.coco.loadCats(ann["category_id"])[0]["name"]
-    #                     in self.delete_list
-    #                 ):
-    #                     save = False
-    #                     break
-    #
-    #         if save:
-    #             if random.randint(1, 100) >= self.train_val_probs:
-    #                 self._val_list.append(img_id)
-    #             else:
-    #                 self._train_list.append(img_id)
-    #             self._all_img_list.append(img_id)
-    #
-    #     self._save_lists()
 
     def _save_lists(self):
         train_list_path = os.path.join(
@@ -385,11 +360,9 @@ class JsonHandler:
         anns = self.coco.loadAnns(anns_ids)
         return anns
 
-    def process_mask(self, ann):
+    def process_mask(self, ann, image_height, image_width):
         class_idx = self.cats_to_classes[ann["category_id"]]
-        rle = maskUtils.frPyObjects(
-            ann["segmentation"], ann["image_height"], ann["image_width"]
-        )
+        rle = maskUtils.frPyObjects(ann["segmentation"], image_height, image_width)
         mask = maskUtils.decode(rle)
         return class_idx, mask
 
@@ -399,33 +372,37 @@ class JsonHandler:
         gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
         anns = self.load_annotations(idx)
+        image_height = img_info["height"]
+        image_width = img_info["width"]
+
         mask = np.zeros(
-            (
-                len(self.catIDs) - len(self.delete_list) + 1,
-                img_info["height"],
-                img_info["width"],
-            )
+            (len(self.catIDs) - len(self.delete_list) + 1, image_height, image_width)
         )
 
         for ann in anns:
             if ann["category_id"] not in self.delete_list:
-                class_idx, mask_instance = self.process_mask(ann)
+                class_idx, mask_instance = self.process_mask(
+                    ann, image_height, image_width
+                )
+                mask_instance = np.squeeze(mask_instance)
                 mask[class_idx] = np.maximum(mask[class_idx], mask_instance)
 
         mask = self.to_out_classes(mask)
 
         if self.resize and not contours:
             image = torch.unsqueeze(torch.tensor(gray_image), 0)
-            image = torchvision.transforms.functional.resize(image, self.resize)
+            image = torchvision.transforms.functional.resize(
+                image, self.resize, antialias=True
+            )
             mask = torchvision.transforms.functional.resize(
-                torch.tensor(mask), self.resize
+                torch.tensor(mask), self.resize, antialias=True
             )
 
             if not self.dataloader:
                 image = torch.unsqueeze(image, 0)
                 image = (image - image.min()) / (image.max() - image.min() + 1e-7)
                 mask = torch.unsqueeze(mask, 0)
-                rgb_image = cv2.resize(image, self.resize)
+                rgb_image = cv2.resize(image.numpy().squeeze(), self.resize)
                 return image.float(), mask.long(), rgb_image
 
             image = (image - image.min()) / (image.max() - image.min() + 1e-7)
@@ -434,7 +411,7 @@ class JsonHandler:
                 "masks": mask.long(),
                 "labels": torch.amax(mask, dim=(-1, -2)),
                 "values": torch.sum(mask, (-1, -2)),
-                "rgb_image": rgb_image,
+                # "rgb_image": rgb_image,
             }
             return result
         else:
