@@ -56,16 +56,14 @@ def make_dataloaders(subdirectories_list, batch_size):
                 sct_coco = convert_from_coco(i, "train")
 
                 if count == 0:
-                    print("sct_coco._total_train", sct_coco.total_train)
-                    TotalTrain = np.copy(sct_coco._total_train)
+                    TotalTrain = np.copy(sct_coco.total_train)
                     print(TotalTrain, "TotalTrain")
-                    pixel_TotalTrain = np.copy(sct_coco._pixel_total_train)
+                    pixel_TotalTrain = np.copy(sct_coco.pixel_total_train)
 
                 else:
-                    print("sct_coco._total_train", sct_coco.total_train)
                     print(TotalTrain, "TotalTrain")
-                    TotalTrain += sct_coco._total_train
-                    pixel_TotalTrain += sct_coco._pixel_total_train
+                    TotalTrain += sct_coco.total_train
+                    pixel_TotalTrain += sct_coco.pixel_total_train
 
                 train_dataset = Subset(sct_coco, sct_coco.train_list)
                 all_train_data.append(train_dataset)
@@ -111,7 +109,7 @@ def make_dataloaders(subdirectories_list, batch_size):
 if __name__ == "__main__":
     path = "/home/imran/Документы/Innopolis/First_data_test/FINAL_CONVERT"
     subdirectories_list = get_direct_subdirectories(path)
-    batch_size = 10
+    batch_size = 1
 
     (
         train_loader,

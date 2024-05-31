@@ -1,9 +1,11 @@
 import os
 
-print("int", int("055")) # 55
+
+# вот тут был код но мне нужен был верхний
+print("int", int("055"))  # 55
 
 # Путь к корневой директории
-root_dir = '/home/imran-nasyrov/sct_project/sct_data/FINAL_CONVERT_NEW'
+root_dir = "/home/imran-nasyrov/sct_project/sct_data/FINAL_CONVERT_NEW"
 
 # Получаем список всех поддиректорий в корневой директории
 sub_dirs = next(os.walk(root_dir))[1]
@@ -21,18 +23,17 @@ for sub_dir in sub_dirs:
         sub_sub_dir_path = os.path.join(sub_dir_path, sub_sub_dir)
         # print("sub_sub_dir_path", sub_sub_dir_path)
         # print("os.listdir(sub_sub_dir_path)", os.listdir(sub_sub_dir_path))
-        if 'annotations' not in os.listdir(sub_sub_dir_path):
+        if "annotations" not in os.listdir(sub_sub_dir_path):
             main_folders.add(sub_dir)
 
 # main_folders содержит имена подпапок первого уровня без подпапки annotations
 print(main_folders)
 print("main_folders", len(main_folders))
 
-# вот эти папки мне вывелись, но у них есть лэйблы в Labels но почему то их нет в FINAL_CONVERT_OLD 
+# вот эти папки мне вывелись, но у них есть лэйблы в Labels но почему то их нет в FINAL_CONVERT_OLD
 # буду переделывать в FINAL_CONVERT
 # 201000265
 # 201206791
-
 
 
 # # тут найду папки со словом желудок и потом удалю их
@@ -55,9 +56,8 @@ print("main_folders", len(main_folders))
 # for folder in filtered_folders:
 #     folder_path = os.path.join(directory_path, folder)
 #     # print("folder_path", folder_path)
-    
+
 #     # это удалит папки!!! закоменчу на всякий случай
 #     # shutil.rmtree(folder_path)
 
 # print("Папки успешно удалены.")
-

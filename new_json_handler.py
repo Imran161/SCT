@@ -158,7 +158,14 @@ class JsonHandler:
 
     def _generate_train_val_lists(self):
         imgIds = self.coco.getImgIds()
-        self._train_list, self._val_list, self._all_img_list = [], [], []
+        # self._train_list, self._val_list, self._all_img_list = [], [], []
+
+        if self._train_list is None:
+            self._train_list = []
+        if self._val_list is None:
+            self._val_list = []
+        if self._all_img_list is None:
+            self._all_img_list = []
 
         for img_id in imgIds:
             anns_ids = self.coco.getAnnIds(imgIds=img_id, catIds=self.catIDs)
@@ -232,20 +239,28 @@ class JsonHandler:
                 self._pixel_total_train = pickle.load(f)
             with open(pixel_total_val_path, "rb") as f:
                 self._pixel_total_val = pickle.load(f)
+
         else:
             self._calculate_weights()
 
     def _calculate_weights(self):
-        noc = len(self.list_of_name_out_classes)
-        self._total_train, self._total_val = np.zeros(noc), np.zeros(noc)
-        self._pixel_total_train, self._pixel_total_val = np.zeros(noc), np.zeros(noc)
+        len_out_cls = len(self.list_of_name_out_classes)
+        self._total_train, self._total_val = (
+            np.zeros(len_out_cls),
+            np.zeros(len_out_cls),
+        )
+        self._pixel_total_train, self._pixel_total_val = (
+            np.zeros(len_out_cls),
+            np.zeros(len_out_cls),
+        )
 
         for img_id in self.train_list:
             result = self.__getitem__(img_id)
             # image = result["images"]
             mask = result["masks"]
 
-            for i in range(noc):
+            for i in range(len_out_cls):
+                вот тут по ходу патологии добавляются и в первый класс и в нулевой
                 self._total_train[i] += mask[i].max().item()
                 self._pixel_total_train[i] += mask[i].sum().item()
 
@@ -254,7 +269,7 @@ class JsonHandler:
             # image = result["images"]
             mask = result["masks"]
 
-            for i in range(noc):
+            for i in range(len_out_cls):
                 self._total_val[i] += mask[i].max().item()
                 self._pixel_total_val[i] += mask[i].sum().item()
 

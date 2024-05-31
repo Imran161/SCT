@@ -13,12 +13,11 @@ from utils import (
 class COCODataLoader:
     def __init__(self, json_params):
         self.json_params = json_params
-        self.subdirectories_list = self.get_direct_subdirectories(
+        self.subdirectories_list = self.get_subdirectories(
             self.json_params["json_file_path"]
         )
-        # self.handler = JsonHandler(json_params)
 
-    def get_direct_subdirectories(self, directory):
+    def get_subdirectories(self, directory):
         subdirectories = [
             d
             for d in os.listdir(directory)
@@ -26,31 +25,30 @@ class COCODataLoader:
         ]
         return [os.path.join(directory, subdir) for subdir in subdirectories]
 
-    def convert_from_coco(self, path, probs):
-        self.json_params["train_val_probs"] = probs
+    def class_instance(self, path, split_category):
         self.json_params["json_file_path"] = path
 
-        sct_coco = JsonHandler(self.json_params)
+        sct_coco = JsonHandler(self.json_params, split_category)
         return sct_coco
 
     def make_dataloaders(self, batch_size, train_val_ratio=0.8):
         random.shuffle(self.subdirectories_list)
 
-        num_train_folders = int(train_val_ratio * len(self.subdirectories_list))
-        train_folders = self.subdirectories_list[:num_train_folders]
-        val_folders = self.subdirectories_list[num_train_folders:]
+        num_folders = int(train_val_ratio * len(self.subdirectories_list))
+        train_folders = self.subdirectories_list[:num_folders]
+        val_folders = self.subdirectories_list[num_folders:]
 
         all_train_data = []
         all_val_data = []
 
         count = 0
         for s in train_folders:
-            sub_subdirectories_list = self.get_direct_subdirectories(s)
+            sub_subdirectories_list = self.get_subdirectories(s)
 
             print("s", s)
             for i in sub_subdirectories_list:
                 try:
-                    sct_coco = self.convert_from_coco(i, 100)
+                    sct_coco = self.class_instance(i, "train")
 
                     if count == 0:
                         TotalTrain = np.copy(sct_coco._total_train)
@@ -68,7 +66,7 @@ class COCODataLoader:
                     print("no")
 
         for s in val_folders:
-            sub_subdirectories_list = self.get_direct_subdirectories(s)
+            sub_subdirectories_list = self.get_subdirectories(s)
 
             for i in sub_subdirectories_list:
                 try:
@@ -108,10 +106,8 @@ if __name__ == "__main__":
         "out_classes": SCT_out_classes,
         "dataloader": True,
         "resize": (256, 256),
-        "recalculate": False,
+        "recalculate": True,
         "delete_null": False,
-        # "train_val_probs": 80, он тут не нужен,
-        # тк в make_dataloaders передается параметр для разделения
     }
 
     coco_dataloader = COCODataLoader(params)
