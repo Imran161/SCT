@@ -16,15 +16,13 @@ import itertools
 
 # from MedSAM.segment_anything import sam_model_registry
 
-# /home/imran/Документы/Innopolis/First_data_test/segmentation_server.py
-from segmentation import Universal_json_Segmentation_Dataset
+
 from metrics import Detection_metrics
 
 from utils import iou_metric, ExperimentSetup
 
-from sanya_sinusite import standart_data
 
-from test_new_json_handler import COCODataLoader
+from test_new_json_handler import SINUSITE_COCODataLoader
 from utils import set_seed
 
 set_seed(64)
@@ -77,13 +75,6 @@ def custom_collate_fn(batch):
         images.append(image)
         masks.append(mask)
 
-        # Проверка размеров на этапе коллатинга
-        # if image.shape != torch.Size([1, 512, 512]):
-        #     print(f"Image size mismatch during collation: {image.shape}")
-        # if mask.shape != torch.Size([3, 512, 512]):
-        #     print(f"Mask size mismatch during collation: {mask.shape}")
-
-    # Используем стандартную функцию коллатинга для объединения данных
     collated_images = default_collate(images)
     collated_masks = default_collate(masks)
 
@@ -675,7 +666,7 @@ if __name__ == "__main__":
         "delete_null": False,
     }
 
-    coco_dataloader = COCODataLoader(params)
+    coco_dataloader = SINUSITE_COCODataLoader(params)
 
     (
         train_loader,
