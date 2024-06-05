@@ -102,6 +102,7 @@ class COCODataLoader:
 
 
 if __name__ == "__main__":
+    print("Hello")
     params = {
         "json_file_path": "/home/imran/Документы/Innopolis/First_data_test/FINAL_CONVERT",
         "delete_list": [],
