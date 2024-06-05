@@ -102,14 +102,14 @@ def make_dataloaders(subdirectories_list, batch_size):
         val_loader,
         TotalTrain,
         pixel_TotalTrain,
-        sct_coco.list_of_name_out_classes,
+        sct_coco.list_out_classes,
     )
 
 
 if __name__ == "__main__":
     path = "/home/imran/Документы/Innopolis/First_data_test/FINAL_CONVERT"
     subdirectories_list = get_direct_subdirectories(path)
-    batch_size = 1
+    batch_size = 2
 
     (
         train_loader,

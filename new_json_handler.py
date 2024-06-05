@@ -40,9 +40,7 @@ class JsonHandler:
         self.catIDs = self.coco.getCatIds()
         self.cats_to_classes = self.map_cats_to_classes()
 
-        self.list_of_name_out_classes = ["фон"] + [
-            cl["name"] for cl in self.out_classes
-        ]
+        self.list_out_classes = ["фон"] + [cl["name"] for cl in self.out_classes]
         self.list_of_name_base_classes = ["фон"] + [
             cl["name"] for cl in self.base_classes
         ]
@@ -244,7 +242,7 @@ class JsonHandler:
             self._calculate_weights()
 
     def _calculate_weights(self):
-        len_out_cls = len(self.list_of_name_out_classes)
+        len_out_cls = len(self.list_out_classes)
         self._total_train, self._total_val = (
             np.zeros(len_out_cls),
             np.zeros(len_out_cls),
@@ -260,7 +258,6 @@ class JsonHandler:
             mask = result["masks"]
 
             for i in range(len_out_cls):
-                вот тут по ходу патологии добавляются и в первый класс и в нулевой
                 self._total_train[i] += mask[i].max().item()
                 self._pixel_total_train[i] += mask[i].sum().item()
 

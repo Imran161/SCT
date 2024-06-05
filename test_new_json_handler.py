@@ -13,7 +13,8 @@ from utils import (
 class COCODataLoader:
     def __init__(self, json_params):
         self.json_params = json_params
-        self.subdirectories_list = self.get_subdirectories(
+        self.list_out_classes = None
+        self.subdirectories = self.get_subdirectories(
             self.json_params["json_file_path"]
         )
 
@@ -29,34 +30,35 @@ class COCODataLoader:
         self.json_params["json_file_path"] = path
 
         sct_coco = JsonHandler(self.json_params, split_category)
+        self.list_out_classes = sct_coco.list_out_classes
         return sct_coco
 
     def make_dataloaders(self, batch_size, train_val_ratio=0.8):
-        random.shuffle(self.subdirectories_list)
+        random.shuffle(self.subdirectories)
 
-        num_folders = int(train_val_ratio * len(self.subdirectories_list))
-        train_folders = self.subdirectories_list[:num_folders]
-        val_folders = self.subdirectories_list[num_folders:]
+        num_folders = int(train_val_ratio * len(self.subdirectories))
+        train_folders = self.subdirectories[:num_folders]
+        val_folders = self.subdirectories[num_folders:]
 
         all_train_data = []
         all_val_data = []
 
         count = 0
         for s in train_folders:
-            sub_subdirectories_list = self.get_subdirectories(s)
+            sub_subdirectories = self.get_subdirectories(s)
 
             print("s", s)
-            for i in sub_subdirectories_list:
+            for i in sub_subdirectories:
                 try:
                     sct_coco = self.class_instance(i, "train")
 
                     if count == 0:
-                        TotalTrain = np.copy(sct_coco._total_train)
-                        pixel_TotalTrain = np.copy(sct_coco._pixel_total_train)
+                        total_train = np.copy(sct_coco.total_train)
+                        pixel_total_train = np.copy(sct_coco.pixel_total_train)
                     else:
                         print("sct_coco._total_train", sct_coco.total_train)
-                        TotalTrain += sct_coco._total_train
-                        pixel_TotalTrain += sct_coco._pixel_total_train
+                        total_train += sct_coco.total_train
+                        pixel_total_train += sct_coco.pixel_total_train
 
                     train_dataset = Subset(sct_coco, sct_coco.train_list)
                     all_train_data.append(train_dataset)
@@ -66,13 +68,14 @@ class COCODataLoader:
                     print("no")
 
         for s in val_folders:
-            sub_subdirectories_list = self.get_subdirectories(s)
+            print("s val", s)
+            sub_subdirectories = self.get_subdirectories(s)
 
-            for i in sub_subdirectories_list:
+            for i in sub_subdirectories:
                 try:
-                    sct_coco = self.convert_from_coco(i, 0)
+                    sct_coco = self.class_instance(i, "val")
 
-                    val_dataset = Subset(sct_coco, sct_coco._val_list)
+                    val_dataset = Subset(sct_coco, sct_coco.val_list)
                     all_val_data.append(val_dataset)
 
                     count += 1
@@ -92,9 +95,9 @@ class COCODataLoader:
         return (
             train_loader,
             val_loader,
-            TotalTrain,
-            pixel_TotalTrain,
-            self.handler.list_of_name_out_classes,
+            total_train,
+            pixel_total_train,
+            self.list_out_classes,
         )
 
 
@@ -115,40 +118,14 @@ if __name__ == "__main__":
     (
         train_loader,
         val_loader,
-        TotalTrain,
-        pixel_TotalTrain,
+        total_train,
+        pixel_total_train,
         list_of_name_out_classes,
-    ) = coco_dataloader.make_dataloaders(10, 0.8)
+    ) = coco_dataloader.make_dataloaders(2, 0.8)
 
-    print("TotalTrain", TotalTrain)
-    print("len TotalTrain", len(TotalTrain))
+    print("total_train", total_train)
+    print("len total_train", len(total_train))
     print("list_of_name_out_classes", list_of_name_out_classes)
-    # handler = JsonHandler(params)
-    #
-    # # Получение списков изображений для обучения и валидации через свойства
-    # train_list = handler.train_list
-    # val_list = handler.val_list
-    #
-    # # Работа с первым изображением из обучающего списка
-    # img_id = train_list[0]
-    #
-    # # Получение изображения и масок
-    # gray_image, mask, rgb_image = handler[img_id]
-    #
-    # # Преобразование маски в выходные классы
-    # new_mask = handler.to_out_classes(mask)
-    #
-    # # Получение веса классов через свойства
-    # total_train = handler.total_train
-    # total_val = handler.total_val
-    # pixel_total_train = handler.pixel_total_train
-    # pixel_total_val = handler.pixel_total_val
-    #
-    # # Вывод результатов
-    # print(f"Общее количество тренировочных изображений: {len(train_list)}")
-    # print(f"Общее количество валидационных изображений: {len(val_list)}")
-    # print(f"Размеры серого изображения: {gray_image.shape}")
-    # print(f"Размеры маски: {mask.shape}")
-    # print(f"Новые маски для выходных классов: {new_mask.shape}")
-    # print(f"Общий вес тренировочных данных: {total_train}")
-    # print(f"Общий вес валидационных данных: {total_val}")
+    print("pixel_TotalTrain", pixel_total_train)
+    print("len val_loader", len(val_loader))
+    print("len train_loader", len(train_loader))
