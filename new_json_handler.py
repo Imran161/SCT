@@ -1,5 +1,4 @@
 import cv2
-import random
 from pycocotools.coco import COCO
 import os
 import numpy as np

@@ -14,11 +14,9 @@ class SINUSITE_COCODataLoader:
     def __init__(self, json_params):
         self.json_params = json_params
         self.list_out_classes = None
-        self.subdirectories = self.get_subdirectories(
-            self.json_params["json_file_path"]
-        )
+        self.subdirectories = self.get_subdirs(self.json_params["json_file_path"])
 
-    def get_subdirectories(self, directory):
+    def get_subdirs(self, directory):
         subdirectories = [
             d
             for d in os.listdir(directory)
@@ -44,11 +42,9 @@ class SINUSITE_COCODataLoader:
         all_val_data = []
 
         count = 0
-
-        for i in train_folders:
-            print("i train", i)
-            # try:
-            sct_coco = self.class_instance(i, "train")
+        for subdir in train_folders:
+            print("subdir train", subdir)
+            sct_coco = self.class_instance(subdir, "train")
 
             if count == 0:
                 total_train = np.copy(sct_coco.total_train)
@@ -62,20 +58,15 @@ class SINUSITE_COCODataLoader:
             all_train_data.append(train_dataset)
 
             count += 1
-            # except FileNotFoundError:
-            #     print("no")
 
-        for i in val_folders:
-            print("i val", i)
-            # try:
-            sct_coco = self.class_instance(i, "val")
+        for subdir in val_folders:
+            print("subdir val", subdir)
+            sct_coco = self.class_instance(subdir, "val")
 
             val_dataset = Subset(sct_coco, sct_coco.val_list)
             all_val_data.append(val_dataset)
 
             count += 1
-            # except FileNotFoundError:
-            #     print("no")
 
         concat_train_data = ConcatDataset(all_train_data)
         concat_val_data = ConcatDataset(all_val_data)
@@ -95,15 +86,14 @@ class SINUSITE_COCODataLoader:
             self.list_out_classes,
         )
 
+
 class SCT_COCODataLoader:
     def __init__(self, json_params):
         self.json_params = json_params
         self.list_out_classes = None
-        self.subdirectories = self.get_subdirectories(
-            self.json_params["json_file_path"]
-        )
+        self.subdirectories = self.get_subdirs(self.json_params["json_file_path"])
 
-    def get_subdirectories(self, directory):
+    def get_subdirs(self, directory):
         subdirectories = [
             d
             for d in os.listdir(directory)
@@ -129,43 +119,47 @@ class SCT_COCODataLoader:
         all_val_data = []
 
         count = 0
-        for s in train_folders:
-            sub_subdirectories = self.get_subdirectories(s)
+        for subdir in train_folders:
+            sub_subdirs = self.get_subdirs(subdir)
 
-            print("s", s)
-            for i in sub_subdirectories:
-                # try:
-                sct_coco = self.class_instance(i, "train")
+            print("subdir train", subdir)
+            for sub_subdir in sub_subdirs:
+                path = os.path.join(sub_subdir, "annotations/instances_default.json")
 
-                if count == 0:
-                    total_train = np.copy(sct_coco.total_train)
-                    pixel_total_train = np.copy(sct_coco.pixel_total_train)
+                if os.path.exists(path):
+                    sct_coco = self.class_instance(sub_subdir, "train")
+
+                    if count == 0:
+                        total_train = np.copy(sct_coco.total_train)
+                        pixel_total_train = np.copy(sct_coco.pixel_total_train)
+                    else:
+                        print("sct_coco._total_train", sct_coco.total_train)
+                        total_train += sct_coco.total_train
+                        pixel_total_train += sct_coco.pixel_total_train
+
+                    train_dataset = Subset(sct_coco, sct_coco.train_list)
+                    all_train_data.append(train_dataset)
+
+                    count += 1
                 else:
-                    print("sct_coco._total_train", sct_coco.total_train)
-                    total_train += sct_coco.total_train
-                    pixel_total_train += sct_coco.pixel_total_train
+                    print(f"File not found for directory: {sub_subdir}")
 
-                train_dataset = Subset(sct_coco, sct_coco.train_list)
-                all_train_data.append(train_dataset)
+        for subdir in val_folders:
+            print("subdir val", subdir)
+            sub_subdirs = self.get_subdirs(subdir)
 
-                count += 1
-                # except FileNotFoundError:
-                #     print("no")
+            for sub_subdir in sub_subdirs:
+                path = os.path.join(sub_subdir, "annotations/instances_default.json")
 
-        for s in val_folders:
-            print("s val", s)
-            sub_subdirectories = self.get_subdirectories(s)
+                if os.path.exists(path):
+                    sct_coco = self.class_instance(sub_subdir, "val")
 
-            for i in sub_subdirectories:
-                # try:
-                sct_coco = self.class_instance(i, "val")
+                    val_dataset = Subset(sct_coco, sct_coco.val_list)
+                    all_val_data.append(val_dataset)
 
-                val_dataset = Subset(sct_coco, sct_coco.val_list)
-                all_val_data.append(val_dataset)
-
-                count += 1
-                # except FileNotFoundError:
-                #     print("no")
+                    count += 1
+                else:
+                    print(f"File not found for directory: {sub_subdir}")
 
         concat_train_data = ConcatDataset(all_train_data)
         concat_val_data = ConcatDataset(all_val_data)
