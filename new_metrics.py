@@ -5,7 +5,7 @@ from sklearn.metrics import roc_curve, auc
 
 
 class DetectionMetrics:
-    def __init__(self, mode, num_classes, threshold=0.5):
+    def __init__(self, mode: str, num_classes: int, threshold=0.5):
         self.mode = mode
         self.num_classes = num_classes
         self.threshold = threshold
@@ -142,7 +142,7 @@ class DetectionMetrics:
             pred_mask[i] = F.one_hot(index_mask, ncl).permute(2, 0, 1).long()
         return pred_mask
 
-    def update_counter(self, true_mask, pred_mask):
+    def update_counter(self, true_mask, pred_mask, advanced_metrics=False):
         batch_size = true_mask.size(0)
         true_mask = true_mask.detach()
         pred_mask = pred_mask.detach()
@@ -177,12 +177,20 @@ class DetectionMetrics:
 
         for i in range(batch_size):
             for j in range(self.num_classes):
-                (
-                    instance_IOU,
-                    instance_tp,
-                    instance_fp,
-                    instance_fn,
-                ) = self.calc_detect_metrics(true_mask[i, j], pred_mask[i, j])
+                if advanced_metrics:
+                    (
+                        instance_IOU,
+                        instance_tp,
+                        instance_fp,
+                        instance_fn,
+                    ) = self.calc_advanced_metrics(true_mask[i, j], pred_mask[i, j])
+                else:
+                    (
+                        instance_IOU,
+                        instance_tp,
+                        instance_fp,
+                        instance_fn,
+                    ) = self.calc_basic_metrics(true_mask[i, j], pred_mask[i, j])
 
                 batch_IOU[j] += instance_IOU
                 batch_tp[j] += instance_tp
@@ -194,45 +202,112 @@ class DetectionMetrics:
         self.fp += batch_fp
         self.fn += batch_fn
 
-    def calc_detect_metrics(self, true_mask, pred_mask):
-        instance_tp, instance_fp, instance_fn = 0, 0, 0
+    def calc_fp(self, true_mask, pred_mask):
+        true_label = np.max(true_mask)
+        if true_label == 0:
+            return 0
+
+        false_positive_area = pred_mask * (1 - true_mask)
+        # Площадь истинной маски и разности
+        area_true = np.sum(true_mask)
+        area_fp = np.sum(false_positive_area)
+
+        if area_true == 0:
+            return 0
+        fp = np.ceil(area_fp / area_true)
+
+        return int(fp)
+
+    def calc_advanced_metrics(self, true_mask, pred_mask):
+        instance_tp, instance_fp, instance_fn, instance_IOU = 0, 0, 0, 0
+        true_label = np.max(true_mask)
+
+        if true_label == 0:  # Нет объектов в истинной маске
+            if np.max(pred_mask) != 0:  # Ложное срабатывание
+                instance_fp = self.calc_fp(true_mask, pred_mask)
+        else:
+            intersection = np.sum(true_mask * pred_mask)
+            union = np.sum(np.logical_or(true_mask, pred_mask))
+
+            if intersection > 0:
+                detect_sum = intersection / np.sum(true_mask)
+                if detect_sum > 0.5:
+                    instance_tp = 1
+                    instance_IOU = intersection / union
+                else:
+                    instance_fn = 1
+                    instance_fp = self.calc_fp(true_mask, pred_mask)
+            else:  # Пропущенный объект
+                instance_fn = 1
+                instance_fp = self.calc_fp(true_mask, pred_mask)
+
+        return instance_IOU, instance_tp, instance_fp, instance_fn
+
+    def calc_basic_metrics(self, true_mask, pred_mask):
+        instance_tp, instance_fp, instance_fn, instance_IOU = 0, 0, 0, 0
         true_label = np.max(true_mask)
 
         if true_label == 0:
-            instance_IOU = 0
-
             if np.max(pred_mask) != 0:
-                pred_label = 1
-            else:
-                pred_label = 0
-
+                instance_fp = 1
         else:
             intersection = np.sum(true_mask * pred_mask)
-            detect_sum = intersection / np.sum(true_mask)
+            union = np.sum(np.logical_or(true_mask, pred_mask).astype(int))
 
-            if detect_sum > 0.5:
-                pred_label = 1
-                union = np.sum(np.logical_or(true_mask, pred_mask).astype(int))
-                instance_IOU = intersection / union
+            if intersection > 0:
+                detect_sum = intersection / np.sum(true_mask)
+                if detect_sum > 0.5:
+                    instance_tp = 1
+                    instance_IOU = intersection / union
+                else:
+                    instance_fn = 1
+                    instance_fp = 1
             else:
-                pred_label = 0
-                instance_IOU = 0
-
-            # pred_label = 1 if detect_sum > 0.5 else 0
-            # instance_IOU = (
-            #     intersection / np.sum(np.logical_or(true_mask, pred_mask).astype(int))
-            #     if pred_label == 1
-            #     else 0
-            # )
-
-        if true_label == 1 and pred_label == 1:
-            instance_tp = 1
-        if true_label == 1 and pred_label == 0:
-            instance_fn = 1
-        if true_label == 0 and pred_label == 1:
-            instance_fp = 1
+                instance_fn = 1
+                instance_fp = 1
 
         return instance_IOU, instance_tp, instance_fp, instance_fn
+
+    # old
+    # def calc_basic_metrics(self, true_mask, pred_mask):
+    #     instance_tp, instance_fp, instance_fn = 0, 0, 0
+    #     true_label = np.max(true_mask)
+    #
+    #     if true_label == 0:
+    #         instance_IOU = 0
+    #
+    #         if np.max(pred_mask) != 0:
+    #             pred_label = 1
+    #         else:
+    #             pred_label = 0
+    #
+    #     else:
+    #         intersection = np.sum(true_mask * pred_mask)
+    #         detect_sum = intersection / np.sum(true_mask)
+    #
+    #         if detect_sum > 0.5:
+    #             pred_label = 1
+    #             union = np.sum(np.logical_or(true_mask, pred_mask).astype(int))
+    #             instance_IOU = intersection / union
+    #         else:
+    #             pred_label = 0
+    #             instance_IOU = 0
+    #
+    #         # pred_label = 1 if detect_sum > 0.5 else 0
+    #         # instance_IOU = (
+    #         #     intersection / np.sum(np.logical_or(true_mask, pred_mask).astype(int))
+    #         #     if pred_label == 1
+    #         #     else 0
+    #         # )
+    #
+    #     if true_label == 1 and pred_label == 1:
+    #         instance_tp = 1
+    #     if true_label == 1 and pred_label == 0:
+    #         instance_fn = 1
+    #     if true_label == 0 and pred_label == 1:
+    #         instance_fp = 1
+    #
+    #     return instance_IOU, instance_tp, instance_fp, instance_fn
 
     def calc_metrics(self):
         (

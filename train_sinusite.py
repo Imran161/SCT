@@ -5,11 +5,8 @@ from torch.utils.tensorboard import SummaryWriter
 import torch
 import segmentation_models_pytorch as smp
 from tqdm import tqdm
-from tqdm.notebook import tqdm_notebook
-from torch.utils.data import ConcatDataset
-from torch.utils.data import DataLoader, Subset
 from torch.utils.data._utils.collate import default_collate
-from torch.optim import Adam, AdamW
+from torch.optim import Adam
 from sklearn.exceptions import UndefinedMetricWarning
 import warnings
 import itertools
@@ -18,6 +15,7 @@ import itertools
 
 
 from metrics import Detection_metrics
+from new_metrics import DetectionMetrics
 
 from utils import iou_metric, ExperimentSetup
 
@@ -81,218 +79,6 @@ def custom_collate_fn(batch):
     return {"images": collated_images, "masks": collated_masks}
 
 
-def convert_from_coco(path, probs):
-    # print("path", path)
-    # print("number_papki", number_papki) # FINAL_CONVERT
-    # print("second_chislo", second_chislo) # 100604476
-
-    sct_coco = Universal_json_Segmentation_Dataset(
-        json_file_path=path + "/",
-        delete_list=[],
-        base_classes=sinusite_base_classes,
-        out_classes=sinusite_pat_classes_3,
-        delete_null=False,  # Fasle всегда
-        resize=(1024, 1024),
-        dataloader=True,
-        recalculate=True,  # оставить True
-        train_val_probs=probs,
-    )
-
-    first_item = sct_coco[1]
-
-    image, target = first_item["images"], first_item["masks"]
-    print(f"Image size: {image.shape}, Target size: {target.shape}")
-
-    return sct_coco
-
-
-def make_dataloaders(subdirectories_list, batch_size):
-    random.shuffle(subdirectories_list)
-
-    num_train_folders = int(0.9 * len(subdirectories_list))  # тут сделал 90% на вал
-    train_folders = subdirectories_list[:num_train_folders]
-    val_folders = subdirectories_list[num_train_folders:]
-
-    all_train_data = []
-    all_val_data = []
-
-    count = 0
-    # for s in train_folders:
-    #     sub_subdirectories_list = get_direct_subdirectories(s)
-    # print("sub_subdirectories_list", sub_subdirectories_list)
-    print("train_folders", train_folders)
-    print("val_folders", val_folders)
-    print("len train_folders", len(train_folders))
-    print("len val_folders", len(val_folders))
-    # sub_subdirectories_list = get_direct_subdirectories(train_folders)
-
-    for i in train_folders:
-        print("i train", i)
-        # try:
-        sct_coco = convert_from_coco(i, 100)
-
-        if count == 0:
-            TotalTrain = np.copy(sct_coco.TotalTrain)
-            pixel_TotalTrain = np.copy(sct_coco.pixel_TotalTrain)
-        else:
-            TotalTrain += sct_coco.TotalTrain
-            pixel_TotalTrain += sct_coco.pixel_TotalTrain
-
-        train_dataset = Subset(sct_coco, sct_coco.train_list)
-        # for i in range(1, len(train_dataset)):
-        #     sct_coco.show_me_contours(i)
-        # print(train_dataset[i])
-        # first_item = sct_coco[i]
-        # image, target = first_item['images'], first_item['masks']
-        # # gray_image, mask, rgb_image = sct_coco[i]
-        # print(f"Image size: {image.shape}, Target size: {target.shape}")
-        # # print("gray_image", gray_image.shape, "mask", mask.shape, "rgb_image", rgb_image.shape)
-
-        all_train_data.append(train_dataset)
-
-        count += 1
-        # except:
-        #     print("no")
-
-    # for s in val_folders:
-    #     sub_subdirectories_list = get_direct_subdirectories(s)
-    # sub_subdirectories_list = get_direct_subdirectories(val_folders)
-    for i in val_folders:
-        print("i val", i)
-        # try:
-        sct_coco = convert_from_coco(i, 0)
-
-        val_dataset = Subset(sct_coco, sct_coco.val_list)
-        all_val_data.append(val_dataset)
-
-        count += 1
-        # except:
-        #     print("no")
-
-    concat_train_data = ConcatDataset(all_train_data)
-    concat_val_data = ConcatDataset(all_val_data)
-
-    train_loader = DataLoader(
-        concat_train_data,
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=4,
-        collate_fn=custom_collate_fn,
-    )
-    val_loader = DataLoader(
-        concat_val_data,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=4,
-        collate_fn=custom_collate_fn,
-    )
-
-    return (
-        train_loader,
-        val_loader,
-        TotalTrain,
-        pixel_TotalTrain,
-        sct_coco.list_of_name_out_classes,
-    )
-
-
-def return_dataset_list_and_num_of_classes(
-    sinusite_datasets_path, resize, recalculate, batch_size, mix_test, device=None
-):
-    DirPaths = os.listdir(sinusite_datasets_path)
-
-    val_list_of_dataset = []
-    train_list_of_dataset = []
-    test_list_of_dataset = []
-    for count, path in enumerate(DirPaths):
-        print(path)
-        if path.find("test") == -1 or mix_test == True:
-            dataset = Universal_json_Segmentation_Dataset(
-                json_file_path=sinusite_datasets_path + path,
-                delete_list=[],
-                base_classes=sinusite_base_classes,
-                out_classes=sinusite_pat_classes_3,
-                dataloader=True,
-                resize=resize,
-                recalculate=recalculate,
-            )
-
-            val_dataset = torch.utils.data.Subset(dataset, dataset.val_list)
-            val_list_of_dataset.append(val_dataset)
-            Total_val = np.copy(dataset.TotalVal)
-
-            train_dataset = torch.utils.data.Subset(dataset, dataset.train_list)
-
-            # for i in range(1, len(train_dataset)):
-            #         first_item = dataset[i]
-            #         image, target = first_item['images'], first_item['masks']
-            #         print(f"Image size: {image.shape}, Target size: {target.shape}")
-
-            train_list_of_dataset.append(train_dataset)
-
-            if path.find("test") != -1 and mix_test == True:
-                train_list_of_dataset.append(val_dataset)
-
-            if count == 0:
-                TotalTrain = np.copy(dataset.TotalTrain)
-                pixel_TotalTrain = np.copy(dataset.pixel_TotalTrain)
-            else:
-                TotalTrain += dataset.TotalTrain
-                pixel_TotalTrain += dataset.pixel_TotalTrain
-
-    train_dataset = torch.utils.data.ConcatDataset(train_list_of_dataset)
-    val_dataset = torch.utils.data.ConcatDataset(val_list_of_dataset)
-
-    # Дополнительные проверки
-    # for i in tqdm(range(1, len(train_dataset))):
-    #     item = train_dataset[i]
-    #     image, target = item['images'].to(device), item['masks'].to(device)
-    #     if image.shape != torch.Size([1, 512, 512]) or target.shape != torch.Size([3, 512, 512]):
-    #         print(f"Mismatch in concatenated train dataset at index {i}: Image size {image.shape}, Target size {target.shape}")
-
-    # for i in tqdm(range(1, len(val_dataset))):
-    #     item = val_dataset[i]
-    #     image, target = item['images'].to(device), item['masks'].to(device)
-    #     if image.shape != torch.Size([1, 512, 512]) or target.shape != torch.Size([3, 512, 512]):
-    #         print(f"Mismatch in concatenated val dataset at index {i}: Image size {image.shape}, Target size {target.shape}")
-
-    train_DataLoader = DataLoader(
-        train_dataset,
-        batch_size=batch_size,
-        shuffle=True,
-        drop_last=True,
-        collate_fn=custom_collate_fn,
-    )
-    val_DataLoader = DataLoader(
-        val_dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        drop_last=True,
-        collate_fn=custom_collate_fn,
-    )
-
-    if len(test_list_of_dataset) != 0:
-        test_dataset = torch.utils.data.ConcatDataset(test_list_of_dataset)
-        test_DataLoader = DataLoader(
-            test_dataset,
-            batch_size=batch_size,
-            shuffle=False,
-            drop_last=True,
-            collate_fn=custom_collate_fn,
-        )
-    else:
-        test_DataLoader = None
-
-    return (
-        train_DataLoader,
-        val_DataLoader,
-        test_list_of_dataset,
-        TotalTrain,
-        pixel_TotalTrain,
-        dataset.list_of_name_out_classes,
-    )
-
-
 def train_model(
     model,
     optimizer,
@@ -310,7 +96,7 @@ def train_model(
 ):
     # Создание объекта SummaryWriter для записи логов
     writer = SummaryWriter(log_dir=f"runs_sinusite/{experiment_name}_logs")
-    metrics_calculator = Detection_metrics(mode="ML", num_classes=num_classes)
+    metrics_calculator = DetectionMetrics(mode="ML", num_classes=num_classes)
 
     class_names_dict = {
         class_info["id"]: class_info["name"] for class_info in sinusite_pat_classes_3
@@ -405,7 +191,7 @@ def train_model(
                 train_iou_sum += train_iou_batch
 
                 # для трейна метрики тоже посчитаю
-                metrics_calculator.update_counter(masks, outputs)
+                metrics_calculator.update_counter(masks, outputs, advanced_metrics=True)
 
                 # values, counts = np.unique(outputs.detach().cpu().numpy(), return_counts=True)
                 # for v, c in zip(values, counts):
@@ -429,7 +215,7 @@ def train_model(
 
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=UndefinedMetricWarning)
-            train_metrics = metrics_calculator.calculate_metrics()
+            train_metrics = metrics_calculator.calc_metrics()
 
         # было так но я написал ниже, там для каждого класса метрика
         # for key, value in train_metrics.items():
@@ -490,7 +276,9 @@ def train_model(
                 val_iou_batch = iou_metric(outputs_val, masks_val, num_classes)
                 val_iou_sum += val_iou_batch
 
-                metrics_calculator.update_counter(masks_val, outputs_val)
+                metrics_calculator.update_counter(
+                    masks_val, outputs_val, advanced_metrics=True
+                )
 
                 # добавлю просто чтобы посмотреть
                 # outputs_val_list.append(outputs_val)
@@ -518,7 +306,7 @@ def train_model(
         # обработаю исключение но не знаю хорошая идея или нет
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=UndefinedMetricWarning)
-            metrics = metrics_calculator.calculate_metrics()
+            metrics = metrics_calculator.calc_metrics()
 
         # было так
         # for key, value in metrics.items():
@@ -595,7 +383,7 @@ class Weight_opt_class:
 
         b = self.b
 
-        if b == None:
+        if b is None:
             b = 1
 
         for image_class, cl_name in enumerate(self.classes):
@@ -683,28 +471,9 @@ if __name__ == "__main__":
     print("len val_loader", len(val_loader))
     print("len train_loader", len(train_loader))
 
-    # было так но я класс сделал
-    # (
-    #     train_loader,
-    #     val_loader,
-    #     TotalTrain,
-    #     pixel_TotalTrain,
-    #     list_of_name_out_classes,
-    # ) = make_dataloaders(subdirectories_list, batch_size)
-    #
-    # print("TotalTrain", TotalTrain)
-    # print("len TotalTrain", len(TotalTrain))
-    # print("len(train_loader)", len(train_loader))
-    # print("len(val_loader)", len(val_loader))
-
     device = torch.device("cuda:0")
     print(device)
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
-
-    # for i, (images, masks) in enumerate(train_loader):
-    #     images, masks = images.to(device), masks.to(device)
-    #     if images.shape != torch.Size([1, 512, 512]) or masks.shape != torch.Size([3, 512, 512]):
-    #         print(f"Mismatch in concatenated train dataset at index {i}: Image size {masks.shape}, Target size {masks.shape}")
 
     model = smp.FPN(
         encoder_name="efficientnet-b7",
