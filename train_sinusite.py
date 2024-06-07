@@ -378,7 +378,7 @@ class Weight_opt_class:
 
     def opt_pixel_weight(self, metrics, pixel_all_class_weights=None):
         recall = metrics["recall"]
-        precession = metrics["precession"]
+        precession = metrics["precision"] # раньше precession было 
         F1Score = metrics["F1"]
 
         b = self.b
@@ -450,7 +450,7 @@ if __name__ == "__main__":
         "out_classes": sinusite_pat_classes_3,
         "dataloader": True,
         "resize": (1024, 1024),
-        "recalculate": True,
+        "recalculate": False,
         "delete_null": False,
     }
 
@@ -491,7 +491,7 @@ if __name__ == "__main__":
     use_class_weight = True
     use_pixel_weight = True
     use_pixel_opt = True
-    power = "1.1_new_code_sinusite_weak"
+    power = "1.1_new_fp_sinusite_weak"
 
     exp_setup = ExperimentSetup(
         train_loader, total_train, pixel_total_train, batch_size, num_classes
