@@ -1,9 +1,10 @@
 import os
-import numpy as np
 import random
-from torch.utils.data import DataLoader, ConcatDataset, Subset
 
-from new_json_handler import JsonHandler
+import numpy as np
+from torch.utils.data import ConcatDataset, DataLoader, Subset
+
+from json_handler import JsonHandler
 from utils import (
     SCT_base_classes,
     SCT_out_classes,

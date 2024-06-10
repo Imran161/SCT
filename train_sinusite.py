@@ -1,27 +1,19 @@
-import random
-import os
-import numpy as np
-from torch.utils.tensorboard import SummaryWriter
-import torch
-import segmentation_models_pytorch as smp
-from tqdm import tqdm
-from torch.utils.data._utils.collate import default_collate
-from torch.optim import Adam
-from sklearn.exceptions import UndefinedMetricWarning
-import warnings
 import itertools
+import os
+import warnings
 
-# from MedSAM.segment_anything import sam_model_registry
+import numpy as np
+import segmentation_models_pytorch as smp
+import torch
+from sklearn.exceptions import UndefinedMetricWarning
+from torch.optim import Adam
+from torch.utils.data._utils.collate import default_collate
+from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
 
-
-from metrics import Detection_metrics
-from new_metrics import DetectionMetrics
-
-from utils import iou_metric, ExperimentSetup
-
-
-from test_new_json_handler import SINUSITE_COCODataLoader
-from utils import set_seed
+from coco_dataloaders import SINUSITE_COCODataLoader
+from metrics import DetectionMetrics
+from utils import ExperimentSetup, iou_metric, set_seed
 
 set_seed(64)
 
@@ -378,8 +370,8 @@ class Weight_opt_class:
 
     def opt_pixel_weight(self, metrics, pixel_all_class_weights=None):
         recall = metrics["recall"]
-        precession = metrics["precision"] # раньше precession было 
-        F1Score = metrics["F1"]
+        precession = metrics["precision"]  # раньше precession было
+        f1_score = metrics["F1"]
 
         b = self.b
 
@@ -397,10 +389,10 @@ class Weight_opt_class:
                 print("precession[image_class].item()", precession[image_class].item())
 
                 neg_coef = (
-                    (1 / b) * recall[image_class].item() / F1Score[image_class].item()
+                    (1 / b) * recall[image_class].item() / f1_score[image_class].item()
                 )
                 pos_coef = (
-                    (b) * precession[image_class].item() / F1Score[image_class].item()
+                    (b) * precession[image_class].item() / f1_score[image_class].item()
                 )
                 print("neg_coef", neg_coef)
                 print("pos_coef", pos_coef)
