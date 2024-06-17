@@ -19,7 +19,6 @@ class JsonHandler:
         self.resize = params_dict.get("resize", None)
         self.recalculate = params_dict.get("recalculate", False)
         self.delete_null = params_dict.get("delete_null", False)
-        # self.train_val_probs = params_dict.get("train_val_probs", 80)
 
         self.split_category = split_category
 
@@ -308,58 +307,6 @@ class JsonHandler:
 
         return new_mask
 
-    # def __getitem__(self, idx, contours=False):
-    #     images_description = self.coco.loadImgs(idx)[0]
-    #     image_path = os.path.join(
-    #         self.json_file_path, "images", images_description["file_name"]
-    #     )
-    #     rgb_image = cv2.imread(image_path)
-    #     gray_image = cv2.cvtColor(rgb_image, cv2.COLOR_BGR2GRAY)
-    #
-    #     anns_ids = self.coco.getAnnIds(imgIds=idx, catIds=self.catIDs, iscrowd=None)
-    #     anns = self.coco.loadAnns(anns_ids)
-    #     mask = np.zeros(
-    #         (
-    #             len(self.catIDs) - len(self.delete_list) + 1,
-    #             int(images_description["height"]),
-    #             int(images_description["width"]),
-    #         )
-    #     )
-    #
-    #     for ann in anns:
-    #         cat = self.coco.loadCats(ann["category_id"])[0]
-    #         if cat["name"] not in self.delete_list:
-    #             class_mask = self.coco.annToMask(ann)
-    #             class_idx = self.cats_to_classes[ann["category_id"]]
-    #             mask[class_idx][class_mask == 1] = 1
-    #
-    #     mask = self.to_out_classes(mask)
-    #
-    #     if self.resize and not contours:
-    #         image = torch.unsqueeze(torch.tensor(gray_image), 0)
-    #         image = torchvision.transforms.functional.resize(image, self.resize)
-    #         mask = torchvision.transforms.functional.resize(
-    #             torch.tensor(mask), self.resize
-    #         )
-    #
-    #         if not self.dataloader:
-    #             image = torch.unsqueeze(image, 0)
-    #             image = (image - image.min()) / (image.max() - image.min() + 1e-7)
-    #             mask = torch.unsqueeze(mask, 0)
-    #             rgb_image = cv2.resize(rgb_image, self.resize)
-    #             return image.float(), mask.long(), rgb_image
-    #
-    #         image = (image - image.min()) / (image.max() - image.min() + 1e-7)
-    #         result = {
-    #             "images": image.float(),
-    #             "masks": mask.long(),
-    #             "labels": torch.amax(mask, dim=(-1, -2)),
-    #             "values": torch.sum(mask, (-1, -2)),
-    #             "rgb_image": rgb_image,
-    #         }
-    #         return result
-    #     else:
-    #         return gray_image, mask, rgb_image
 
     def load_image(self, img_id):
         img_info = self.coco.loadImgs(img_id)[0]
