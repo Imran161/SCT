@@ -1,11 +1,12 @@
-import torch
-import numpy as np
-import cv2
 import os
-from torch.utils.data import DataLoader
-from typing import Tuple, Optional, List, Any
 import random
+from typing import Any, List, Optional, Tuple
+
+import cv2
 import matplotlib.pyplot as plt
+import numpy as np
+import torch
+from torch.utils.data import DataLoader
 
 
 def set_seed(seed):
@@ -239,38 +240,36 @@ class ImageVisualizer:
             os.makedirs(self.output_path)
 
     def threshold_predictions(self, pred_masks, threshold=0.5):
-        # было так 
+        # было так
         # rounded_masks = pred_masks >= threshold
         # return np.ceil(rounded_masks)
-   
-        # но надо автоматический порог сделать 
+
+        # но надо автоматический порог сделать
         thresholded_masks = []
         for i in range(pred_masks.shape[0]):
             pred_mask = pred_masks[i]
-            
+
             # Нормализация значений в диапазон от 0 до 255
             normalized_mask = (pred_mask * 255.0).astype(np.uint8)
 
             # Применение метода Оцу
-            _, thresholded_mask = cv2.threshold(normalized_mask, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            _, thresholded_mask = cv2.threshold(
+                normalized_mask, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+            )
 
             # Нормализация обратно в диапазон от 0 до 1
             thresholded_mask = thresholded_mask / 255.0
-            
-            
-            
+
             # было
             # Нормализация значений в диапазон от 0 до 255
             # normalized_mask = cv2.normalize(pred_mask, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
 
             # # Применение метода Оцу
             # _, thresholded_mask = cv2.threshold(normalized_mask, 0, 1, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-            
-            
+
             thresholded_masks.append(thresholded_mask)
-        
+
         return np.array(thresholded_masks)
- 
 
     def visualize_old(
         self, images, true_masks, pred_masks, class_names_dict, colors, epoch=None
@@ -392,19 +391,15 @@ class ImageVisualizer:
                         combined_image,
                     )
 
-    
     # сохранить маску без трешхолда не на черном фоне
-                # то есть без парога я рисую все маски вероятностей
-                # потом я рисую контуры по оптимальному парогу либо 0.1, нахожу все контуры которые есть и каждый контур 
-                # в бинарные и нахожу контур и потом для каждого контура нахожу среднюю вероятность
-                # то есть для каждого контура своя вероятность 
-                
-                # изображение с контурами данного класса и отдельно картинка с маской вероятности данного класса
-                # тогда у меня 4 картинки будет
-    
-    
+    # то есть без парога я рисую все маски вероятностей
+    # потом я рисую контуры по оптимальному парогу либо 0.1, нахожу все контуры которые есть и каждый контур
+    # в бинарные и нахожу контур и потом для каждого контура нахожу среднюю вероятность
+    # то есть для каждого контура своя вероятность
 
-            
+    # изображение с контурами данного класса и отдельно картинка с маской вероятности данного класса
+    # тогда у меня 4 картинки будет
+
     # норм но контуры на черном фоне а надо на картинке
     # def visualize(self, images, true_masks, pred_masks, class_names_dict, colors, epoch=None):
     #     true_masks = true_masks.detach().cpu().numpy()
@@ -420,7 +415,7 @@ class ImageVisualizer:
     #             prob_mask = pred_masks[i][class_idx]
     #             # Применение пороговой фильтрации
     #             thresholded_mask = self.threshold_predictions(prob_mask, threshold=0.1)
-                
+
     #             prob_heatmap = (prob_mask * 255).astype(np.uint8)
     #             heatmap = cv2.applyColorMap(prob_heatmap, cv2.COLORMAP_JET)
 
@@ -435,13 +430,13 @@ class ImageVisualizer:
     #             cv2.putText(contours_image, class_name, (10, 30), cv2.FONT_HERSHEY_COMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)  # Название класса на контурной карте
     #             contours, _ = cv2.findContours((thresholded_mask * 255).astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     #             # rgb_image_plt = cv2.drawContours(rgb_image_plt, contours, -1, (colors[i][0][0], colors[i][0][1], colors[i][0][2]), 2)
-                
+
     #             for contour in contours:
     #                 area = cv2.contourArea(contour)
     #                 if area > 100:  # Условие для отображения средних вероятностей только для крупных областей
     #                     # Создание маски для текущего контура
     #                     mask_contour = np.zeros_like(prob_mask)
-    #                     cv2.drawContours(mask_contour, [contour], -1, 1, thickness=cv2.FILLED) 
+    #                     cv2.drawContours(mask_contour, [contour], -1, 1, thickness=cv2.FILLED)
     #                     # Сумма вероятностей в области контура
     #                     sum_probabilities = np.sum(prob_mask * mask_contour)
     #                     # Средняя вероятность в области контура
@@ -480,16 +475,20 @@ class ImageVisualizer:
     #             cv2.imwrite(f"{self.output_path}/epoch_{epoch}_image_{self.image_counter}.jpg", grid_image)
 
     #         self.image_counter += 1
-    
+
     # а вот это на картинке рисует контуры нормально
-    def visualize(self, images, true_masks, pred_masks, class_names_dict, colors, epoch=None):
+    def visualize(
+        self, images, true_masks, pred_masks, class_names_dict, colors, epoch=None
+    ):
         true_masks = true_masks.detach().cpu().numpy()
         pred_masks = pred_masks.detach().cpu().numpy()
 
         for i in range(len(images)):
             image = images[i][0].cpu().numpy()
             image = (image * 255).astype(np.uint8)
-            image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)  # Преобразование в трехканальный формат для рисования цветных контуров
+            image = cv2.cvtColor(
+                image, cv2.COLOR_GRAY2BGR
+            )  # Преобразование в трехканальный формат для рисования цветных контуров
 
             combined_images = []
 
@@ -497,27 +496,55 @@ class ImageVisualizer:
                 prob_mask = pred_masks[i][class_idx]
                 # Применение пороговой фильтрации
                 thresholded_mask = self.threshold_predictions(prob_mask)
-                
+
                 prob_heatmap = (prob_mask * 255).astype(np.uint8)
                 heatmap = cv2.applyColorMap(prob_heatmap, cv2.COLORMAP_JET)
 
                 # Добавить надпись с классом для тепловой карты
-                class_name = class_names_dict.get(class_idx + 1, f"Class {class_idx + 1}")
-                cv2.putText(heatmap, class_name, (10, 30), cv2.FONT_HERSHEY_COMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+                class_name = class_names_dict.get(
+                    class_idx + 1, f"Class {class_idx + 1}"
+                )
+                cv2.putText(
+                    heatmap,
+                    class_name,
+                    (10, 30),
+                    cv2.FONT_HERSHEY_COMPLEX,
+                    1,
+                    (255, 255, 255),
+                    2,
+                    cv2.LINE_AA,
+                )
 
                 combined_images.append(heatmap)
 
                 # Рисование контуров на исходном изображении
                 contours_image = image.copy()
-                cv2.putText(contours_image, class_name, (10, 30), cv2.FONT_HERSHEY_COMPLEX, 1, (0, 0, 0), 2, cv2.LINE_AA)  # Название класса на контурной карте
-                contours, _ = cv2.findContours((thresholded_mask * 255).astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-                
+                cv2.putText(
+                    contours_image,
+                    class_name,
+                    (10, 30),
+                    cv2.FONT_HERSHEY_COMPLEX,
+                    1,
+                    (0, 0, 0),
+                    2,
+                    cv2.LINE_AA,
+                )  # Название класса на контурной карте
+                contours, _ = cv2.findContours(
+                    (thresholded_mask * 255).astype(np.uint8),
+                    cv2.RETR_TREE,
+                    cv2.CHAIN_APPROX_SIMPLE,
+                )
+
                 for contour in contours:
                     area = cv2.contourArea(contour)
-                    if area > 100:  # Условие для отображения средних вероятностей только для крупных областей
+                    if (
+                        area > 100
+                    ):  # Условие для отображения средних вероятностей только для крупных областей
                         # Создание маски для текущего контура
                         mask_contour = np.zeros_like(prob_mask)
-                        cv2.drawContours(mask_contour, [contour], -1, 1, thickness=cv2.FILLED) 
+                        cv2.drawContours(
+                            mask_contour, [contour], -1, 1, thickness=cv2.FILLED
+                        )
                         # Сумма вероятностей в области контура
                         sum_probabilities = np.sum(prob_mask * mask_contour)
                         # Средняя вероятность в области контура
@@ -526,7 +553,9 @@ class ImageVisualizer:
                         cv2.drawContours(contours_image, [contour], -1, (255, 0, 0), 1)
                         # Добавить надпись с вероятностью и классом
                         text = f"{avg_probability:.4f}"
-                        text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_COMPLEX, 0.5, 1)[0]
+                        text_size = cv2.getTextSize(
+                            text, cv2.FONT_HERSHEY_COMPLEX, 0.5, 1
+                        )[0]
                         text_x = contour[0][0][0]
                         text_y = contour[0][0][1]
 
@@ -536,29 +565,49 @@ class ImageVisualizer:
                         if text_y - text_size[1] < 0:
                             text_y = text_size[1]
 
-                        cv2.putText(contours_image, text, (text_x, text_y), cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
+                        cv2.putText(
+                            contours_image,
+                            text,
+                            (text_x, text_y),
+                            cv2.FONT_HERSHEY_COMPLEX,
+                            0.5,
+                            (0, 0, 0),
+                            1,
+                            cv2.LINE_AA,
+                        )
 
                 combined_images.append(contours_image)
 
             # Организация изображений в квадрат
             num_images = len(combined_images)
             grid_size = int(np.ceil(np.sqrt(num_images)))
-            grid_image = np.zeros((grid_size * image.shape[0], grid_size * image.shape[1], 3), dtype=np.uint8)
+            grid_image = np.zeros(
+                (grid_size * image.shape[0], grid_size * image.shape[1], 3),
+                dtype=np.uint8,
+            )
 
             for idx, img in enumerate(combined_images):
                 row = idx // grid_size
                 col = idx % grid_size
-                grid_image[row * image.shape[0]:(row + 1) * image.shape[0], col * image.shape[1]:(col + 1) * image.shape[1], :] = img
+                grid_image[
+                    row * image.shape[0]: (row + 1) * image.shape[0],
+                    col * image.shape[1]: (col + 1) * image.shape[1],
+                    :,
+                ] = img
 
             if epoch is None:
-                cv2.imwrite(f"{self.output_path}/image_{self.image_counter}.jpg", grid_image)
+                cv2.imwrite(
+                    f"{self.output_path}/image_{self.image_counter}.jpg", grid_image
+                )
             else:
-                cv2.imwrite(f"{self.output_path}/epoch_{epoch}_image_{self.image_counter}.jpg", grid_image)
+                cv2.imwrite(
+                    f"{self.output_path}/epoch_{epoch}_image_{self.image_counter}.jpg",
+                    grid_image,
+                )
 
-            self.image_counter += 1   
-            
-            
-            
+            self.image_counter += 1
+
+
 class ExperimentSetup:
     def __init__(
         self,

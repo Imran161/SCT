@@ -1,16 +1,16 @@
 import os
 import random
 
-import numpy as np
 import cv2
+import numpy as np
 from torch.utils.data import ConcatDataset, DataLoader, Subset
 
 from json_handler import JsonHandler
-
 from utils import (
     SCT_base_classes,
     SCT_out_classes,
 )
+
 
 # в новом моем json неправильные маски
 class SINUSITE_COCODataLoader:
@@ -31,7 +31,7 @@ class SINUSITE_COCODataLoader:
         self.json_params["json_file_path"] = path
 
         sct_coco = JsonHandler(self.json_params, split_category)
-        self.list_out_classes = sct_coco.list_out_classes 
+        self.list_out_classes = sct_coco.list_out_classes
         return sct_coco
 
     def make_dataloaders(self, batch_size, train_val_ratio=0.8):
@@ -88,30 +88,32 @@ class SINUSITE_COCODataLoader:
             pixel_total_train,
             self.list_out_classes,
         )
-        
+
     def show_image_with_mask(self, image, mask, idx):
         image = (image * 255).astype(np.uint8)
         mask = mask.astype(np.uint8)
-        
+
         # Convert grayscale image to RGB
         image_rgb = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-        
+
         # Define colors for the classes
         colors = [(0, 0, 255), (255, 0, 0)]  # Red for class 1, Blue for class 2
-        
+
         # Draw contours on the image
         for i in range(mask.shape[0]):
-            contours, _ = cv2.findContours(mask[i], cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            contours, _ = cv2.findContours(
+                mask[i], cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
+            )
             image_rgb = cv2.drawContours(image_rgb, contours, -1, colors[i], 2)
-        
+
         # Convert BGR to RGB for matplotlib
         image_rgb = cv2.cvtColor(image_rgb, cv2.COLOR_BGR2RGB)
-        
+
         # Save the image with contours
-        photo_path = f"/home/imran-nasyrov/test_img_sin"
+        photo_path = "/home/imran-nasyrov/test_img_sin"
         if not os.path.exists(photo_path):
             os.makedirs(photo_path)
-                
+
         cv2.imwrite(f"{photo_path}/test_img_sin_{idx}.jpg", image_rgb)
 
 
