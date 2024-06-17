@@ -247,12 +247,25 @@ class ImageVisualizer:
         thresholded_masks = []
         for i in range(pred_masks.shape[0]):
             pred_mask = pred_masks[i]
-
+            
             # Нормализация значений в диапазон от 0 до 255
-            normalized_mask = cv2.normalize(pred_mask, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+            normalized_mask = (pred_mask * 255.0).astype(np.uint8)
 
             # Применение метода Оцу
-            _, thresholded_mask = cv2.threshold(normalized_mask, 0, 1, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            _, thresholded_mask = cv2.threshold(normalized_mask, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+            # Нормализация обратно в диапазон от 0 до 1
+            thresholded_mask = thresholded_mask / 255.0
+            
+            
+            
+            # было
+            # Нормализация значений в диапазон от 0 до 255
+            # normalized_mask = cv2.normalize(pred_mask, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+
+            # # Применение метода Оцу
+            # _, thresholded_mask = cv2.threshold(normalized_mask, 0, 1, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            
             
             thresholded_masks.append(thresholded_mask)
         

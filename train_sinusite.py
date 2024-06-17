@@ -365,71 +365,10 @@ class Weight_opt_class:
         self.classes = classes
 
     # оптимизация старых метрик 
-    def opt_pixel_weight(self, metrics, pixel_all_class_weights=None):
-        recall = metrics["recall"]
-        precession = metrics["precision"]  # раньше precession было
-        f1_score = metrics["F1"]
-
-        b = self.b
-
-        if b is None:
-            b = 1
-
-        for image_class, cl_name in enumerate(self.classes):
-            # print("image_class", image_class)
-            neg_coef = 1
-            pos_coef = 1
-
-            if recall[image_class].item() != 0 and precession[image_class].item() != 0:
-                print("recall и precision != 0")
-                print("recall[image_class].item()", recall[image_class].item())
-                print("precession[image_class].item()", precession[image_class].item())
-
-                neg_coef = (
-                    (1 / b) * recall[image_class].item() / f1_score[image_class].item()
-                )
-                pos_coef = (
-                    (b) * precession[image_class].item() / f1_score[image_class].item()
-                )
-                print("neg_coef", neg_coef)
-                print("pos_coef", pos_coef)
-
-                xsd = recall[image_class].item() / precession[image_class].item()
-                print("xsd", xsd)
-                if xsd > 0.9 and xsd < 1.1:
-                    neg_coef = 1
-                    pos_coef = 1
-                class_coef = pos_coef
-                print("вот после изменений")
-                print("neg_coef", neg_coef)
-                print("pos_coef", pos_coef)
-                print("class_coef", class_coef)
-
-            else:
-                print("recall или precision == 0")
-                print("recall[image_class].item()", recall[image_class].item())
-                print("precession[image_class].item()", precession[image_class].item())
-
-                pos_coef = 2.0
-                class_coef = 2.0
-                neg_coef = 0.5
-                print("neg_coef", neg_coef)
-                print("pos_coef", pos_coef)
-                print("class_coef", class_coef)
-
-            if pixel_all_class_weights is not None:
-                pixel_all_class_weights[0][image_class] *= pos_coef
-                pixel_all_class_weights[1][image_class] *= neg_coef
-                pixel_all_class_weights[2][image_class] *= class_coef
-
-        return pixel_all_class_weights
-
-
-        # оптимизация новых метрик
     # def opt_pixel_weight(self, metrics, pixel_all_class_weights=None):
-    #     recall = metrics["advanced_recall"]
-    #     precession = metrics["advanced_precision"] # раньше precession было 
-    #     F1Score = metrics["advanced_F1"]
+    #     recall = metrics["recall"]
+    #     precession = metrics["precision"]  # раньше precession было
+    #     f1_score = metrics["F1"]
 
     #     b = self.b
 
@@ -447,10 +386,10 @@ class Weight_opt_class:
     #             print("precession[image_class].item()", precession[image_class].item())
 
     #             neg_coef = (
-    #                 (1 / b) * recall[image_class].item() / F1Score[image_class].item()
+    #                 (1 / b) * recall[image_class].item() / f1_score[image_class].item()
     #             )
     #             pos_coef = (
-    #                 (b) * precession[image_class].item() / F1Score[image_class].item()
+    #                 (b) * precession[image_class].item() / f1_score[image_class].item()
     #             )
     #             print("neg_coef", neg_coef)
     #             print("pos_coef", pos_coef)
@@ -484,6 +423,67 @@ class Weight_opt_class:
     #             pixel_all_class_weights[2][image_class] *= class_coef
 
     #     return pixel_all_class_weights
+
+
+        # оптимизация новых метрик
+    def opt_pixel_weight(self, metrics, pixel_all_class_weights=None):
+        recall = metrics["advanced_recall"]
+        precession = metrics["advanced_precision"] # раньше precession было 
+        F1Score = metrics["advanced_F1"]
+
+        b = self.b
+
+        if b is None:
+            b = 1
+
+        for image_class, cl_name in enumerate(self.classes):
+            # print("image_class", image_class)
+            neg_coef = 1
+            pos_coef = 1
+
+            if recall[image_class].item() != 0 and precession[image_class].item() != 0:
+                print("recall и precision != 0")
+                print("recall[image_class].item()", recall[image_class].item())
+                print("precession[image_class].item()", precession[image_class].item())
+
+                neg_coef = (
+                    (1 / b) * recall[image_class].item() / F1Score[image_class].item()
+                )
+                pos_coef = (
+                    (b) * precession[image_class].item() / F1Score[image_class].item()
+                )
+                print("neg_coef", neg_coef)
+                print("pos_coef", pos_coef)
+
+                xsd = recall[image_class].item() / precession[image_class].item()
+                print("xsd", xsd)
+                if xsd > 0.9 and xsd < 1.1:
+                    neg_coef = 1
+                    pos_coef = 1
+                class_coef = pos_coef
+                print("вот после изменений")
+                print("neg_coef", neg_coef)
+                print("pos_coef", pos_coef)
+                print("class_coef", class_coef)
+
+            else:
+                print("recall или precision == 0")
+                print("recall[image_class].item()", recall[image_class].item())
+                print("precession[image_class].item()", precession[image_class].item())
+
+                pos_coef = 2.0
+                class_coef = 2.0
+                neg_coef = 0.5
+                print("neg_coef", neg_coef)
+                print("pos_coef", pos_coef)
+                print("class_coef", class_coef)
+
+            if pixel_all_class_weights is not None:
+                pixel_all_class_weights[0][image_class] *= pos_coef
+                pixel_all_class_weights[1][image_class] *= neg_coef
+                pixel_all_class_weights[2][image_class] *= class_coef
+
+        return pixel_all_class_weights
 
 
 if __name__ == "__main__":
@@ -535,7 +535,7 @@ if __name__ == "__main__":
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
 
     model = smp.FPN(
-        encoder_name="efficientnet-b4",
+        encoder_name="efficientnet-b7",
         encoder_weights="imagenet",
         in_channels=1,
         classes=num_classes,
@@ -548,9 +548,9 @@ if __name__ == "__main__":
     lr_sched = None
 
     use_class_weight = True
-    use_pixel_weight = True
-    use_pixel_opt = True
-    power = "2.2_sinusite_weak"
+    use_pixel_weight = False
+    use_pixel_opt = False
+    power = "1.9_focal_sinusite_weak"
 
     exp_setup = ExperimentSetup(
         train_loader, total_train, pixel_total_train, batch_size, num_classes
@@ -565,21 +565,21 @@ if __name__ == "__main__":
         use_class_weight, use_pixel_weight, use_pixel_opt, power
     )
 
-    train_model(
-        model,
-        optimizer,
-        criterion,
-        lr_sched,
-        num_epochs,
-        train_loader,
-        val_loader,
-        device,
-        num_classes,
-        experiment_name,
-        all_class_weights=all_class_weights,
-        alpha=pixel_all_class_weights,
-        use_opt_pixel_weight=use_pixel_opt,
-    )
+    # train_model(
+    #     model,
+    #     optimizer,
+    #     criterion,
+    #     lr_sched,
+    #     num_epochs,
+    #     train_loader,
+    #     val_loader,
+    #     device,
+    #     num_classes,
+    #     experiment_name,
+    #     all_class_weights=all_class_weights,
+    #     alpha=pixel_all_class_weights,
+    #     use_opt_pixel_weight=use_pixel_opt,
+    # )
 
     # это картинки нарисует предсказанные
 
@@ -591,6 +591,6 @@ if __name__ == "__main__":
     limited_train_loader = itertools.islice(train_loader, 6)
     limited_val_loader = itertools.islice(val_loader, 6)
 
-    # avg_loss = test_model(model, model_weight, criterion,
-    #                         limited_train_loader, train_predict_path,
-    #                         limited_val_loader, val_predict_path, device, num_classes)
+    avg_loss = test_model(model, model_weight, criterion,
+                            limited_train_loader, train_predict_path,
+                            limited_val_loader, val_predict_path, device, num_classes)
