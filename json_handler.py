@@ -20,7 +20,7 @@ class JsonHandler:
         self.resize = params_dict.get("resize")
         self.recalculate = params_dict.get("recalculate", False)
         self.delete_null = params_dict.get("delete_null", False)
-        self.train_val_probs = params_dict.get("train_val_probs")
+        self.train_val_probs = params_dict.get("train_val_probs", 80)
 
         if self.json_file_path[-1] != r"/":
             self.json_file_path += r"/"
@@ -211,6 +211,7 @@ class JsonHandler:
             pixel_TotalVal = np.zeros(noc)
 
             for i in self.train_list:
+                # print("self.train_list", self.train_list)
                 result = self.__getitem__(i)
                 # print(type(result))
                 # print("result[images]", result["images"])
@@ -264,6 +265,8 @@ class JsonHandler:
         return new_mask
 
     def __getitem__(self, idx, contures=False):
+        print("idx", idx)
+        print("self.coco.loadImgs(idx)", self.coco.loadImgs(idx))
         images_description = self.coco.loadImgs(idx)[0]
         image_path = self.json_file_path + "images/" + images_description["file_name"]
         rgb_image = cv2.imread(image_path)

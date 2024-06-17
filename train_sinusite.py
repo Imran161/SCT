@@ -19,9 +19,9 @@ from new_metrics import DetectionMetrics
 
 from utils import iou_metric, ExperimentSetup
 
-
 from test_new_json_handler import SINUSITE_COCODataLoader
 from utils import set_seed
+from sct_val import test_model
 
 set_seed(64)
 
@@ -191,7 +191,7 @@ def train_model(
                 train_iou_sum += train_iou_batch
 
                 # для трейна метрики тоже посчитаю
-                metrics_calculator.update_counter(masks, outputs, advanced_metrics=True)
+                metrics_calculator.update_counter(masks, outputs)#, advanced_metrics=True)
 
                 # values, counts = np.unique(outputs.detach().cpu().numpy(), return_counts=True)
                 # for v, c in zip(values, counts):
@@ -277,8 +277,7 @@ def train_model(
                 val_iou_sum += val_iou_batch
 
                 metrics_calculator.update_counter(
-                    masks_val, outputs_val, advanced_metrics=True
-                )
+                    masks_val, outputs_val) # advanced_metrics=True)
 
                 # добавлю просто чтобы посмотреть
                 # outputs_val_list.append(outputs_val)
@@ -372,10 +371,7 @@ class Weight_opt_class:
         self.loss_class = loss
         self.classes = classes
 
-    # def mask2label(self, mask):
-    #     label = torch.amax(mask, [-1,-2])
-    #     return label
-
+    # оптимизация старых метрик 
     def opt_pixel_weight(self, metrics, pixel_all_class_weights=None):
         recall = metrics["recall"]
         precession = metrics["precision"] # раньше precession было 
@@ -436,6 +432,67 @@ class Weight_opt_class:
         return pixel_all_class_weights
 
 
+        # оптимизация новых метрик
+    # def opt_pixel_weight(self, metrics, pixel_all_class_weights=None):
+    #     recall = metrics["advanced_recall"]
+    #     precession = metrics["advanced_precision"] # раньше precession было 
+    #     F1Score = metrics["advanced_F1"]
+
+    #     b = self.b
+
+    #     if b is None:
+    #         b = 1
+
+    #     for image_class, cl_name in enumerate(self.classes):
+    #         # print("image_class", image_class)
+    #         neg_coef = 1
+    #         pos_coef = 1
+
+    #         if recall[image_class].item() != 0 and precession[image_class].item() != 0:
+    #             print("recall и precision != 0")
+    #             print("recall[image_class].item()", recall[image_class].item())
+    #             print("precession[image_class].item()", precession[image_class].item())
+
+    #             neg_coef = (
+    #                 (1 / b) * recall[image_class].item() / F1Score[image_class].item()
+    #             )
+    #             pos_coef = (
+    #                 (b) * precession[image_class].item() / F1Score[image_class].item()
+    #             )
+    #             print("neg_coef", neg_coef)
+    #             print("pos_coef", pos_coef)
+
+    #             xsd = recall[image_class].item() / precession[image_class].item()
+    #             print("xsd", xsd)
+    #             if xsd > 0.9 and xsd < 1.1:
+    #                 neg_coef = 1
+    #                 pos_coef = 1
+    #             class_coef = pos_coef
+    #             print("вот после изменений")
+    #             print("neg_coef", neg_coef)
+    #             print("pos_coef", pos_coef)
+    #             print("class_coef", class_coef)
+
+    #         else:
+    #             print("recall или precision == 0")
+    #             print("recall[image_class].item()", recall[image_class].item())
+    #             print("precession[image_class].item()", precession[image_class].item())
+
+    #             pos_coef = 2.0
+    #             class_coef = 2.0
+    #             neg_coef = 0.5
+    #             print("neg_coef", neg_coef)
+    #             print("pos_coef", pos_coef)
+    #             print("class_coef", class_coef)
+
+    #         if pixel_all_class_weights is not None:
+    #             pixel_all_class_weights[0][image_class] *= pos_coef
+    #             pixel_all_class_weights[1][image_class] *= neg_coef
+    #             pixel_all_class_weights[2][image_class] *= class_coef
+
+    #     return pixel_all_class_weights
+
+
 if __name__ == "__main__":
     # path = "/home/imran-nasyrov/sinusite_json_data"
     # subdirectories_list = get_direct_subdirectories(path)
@@ -464,6 +521,15 @@ if __name__ == "__main__":
         list_of_name_out_classes,
     ) = coco_dataloader.make_dataloaders(batch_size=batch_size, train_val_ratio=0.8)
 
+    for train_batch in train_loader:
+        images = train_batch["images"]
+        masks = train_batch["masks"][:, 1:, :, :]
+        # print("masks", masks.shape) torch.Size([6, 2, 1024, 1024])
+        for i in range(len(images)):
+            coco_dataloader.show_image_with_mask(images[i][0].cpu().numpy(), masks[i].cpu().numpy(), i)
+        break  # Display only the first batch
+
+    
     print("total_train", total_train)
     print("len total_train", len(total_train))
     print("list_of_name_out_classes", list_of_name_out_classes)
@@ -471,7 +537,7 @@ if __name__ == "__main__":
     print("len val_loader", len(val_loader))
     print("len train_loader", len(train_loader))
 
-    device = torch.device("cuda:0")
+    device = torch.device("cuda:2")
     print(device)
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
 
@@ -489,9 +555,9 @@ if __name__ == "__main__":
     lr_sched = None
 
     use_class_weight = True
-    use_pixel_weight = True
-    use_pixel_opt = True
-    power = "1.1_new_fp_sinusite_weak"
+    use_pixel_weight = False
+    use_pixel_opt = False
+    power = "1.9_focal_sinusite_weak"
 
     exp_setup = ExperimentSetup(
         train_loader, total_train, pixel_total_train, batch_size, num_classes
@@ -524,13 +590,13 @@ if __name__ == "__main__":
 
     # это картинки нарисует предсказанные
 
-    model_weight = f"best_{experiment_name}_model.pth"
+    model_weight = f"sinusite_best_models/best_{experiment_name}_model.pth"
 
-    val_predict_path = f"predict/predict_{experiment_name}/val"
-    train_predict_path = f"predict/predict_{experiment_name}/train"
+    val_predict_path = f"predict_sinusite/predict_{experiment_name}/val"
+    train_predict_path = f"predict_sinusite/predict_{experiment_name}/train"
 
-    limited_train_loader = itertools.islice(train_loader, 16)
-    limited_val_loader = itertools.islice(val_loader, 16)
+    limited_train_loader = itertools.islice(train_loader, 6)
+    limited_val_loader = itertools.islice(val_loader, 6)
 
     # avg_loss = test_model(model, model_weight, criterion,
     #                         limited_train_loader, train_predict_path,

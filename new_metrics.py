@@ -16,6 +16,12 @@ class DetectionMetrics:
         self.tp = np.zeros(self.num_classes)
         self.fp = np.zeros(self.num_classes)
         self.fn = np.zeros(self.num_classes)
+        
+        self.advanced_IOU = np.zeros(self.num_classes)
+        self.advanced_tp = np.zeros(self.num_classes)
+        self.advanced_fp = np.zeros(self.num_classes)
+        self.advanced_fn = np.zeros(self.num_classes)
+    
         self.all_confidences = []
         self.all_probs = []
         self.all_true_labels = []
@@ -142,7 +148,7 @@ class DetectionMetrics:
             pred_mask[i] = F.one_hot(index_mask, ncl).permute(2, 0, 1).long()
         return pred_mask
 
-    def update_counter(self, true_mask, pred_mask, advanced_metrics=False):
+    def update_counter(self, true_mask, pred_mask):#, advanced_metrics=False):
         batch_size = true_mask.size(0)
         true_mask = true_mask.detach()
         pred_mask = pred_mask.detach()
@@ -174,38 +180,44 @@ class DetectionMetrics:
         batch_tp = np.zeros(self.num_classes)
         batch_fp = np.zeros(self.num_classes)
         batch_fn = np.zeros(self.num_classes)
+        
+        
+        advanced_batch_IOU = np.zeros(self.num_classes)
+        advanced_batch_tp = np.zeros(self.num_classes)
+        advanced_batch_fp = np.zeros(self.num_classes)
+        advanced_batch_fn = np.zeros(self.num_classes)
 
         for i in range(batch_size):
             for j in range(self.num_classes):
-                if advanced_metrics:
-                    (
-                        instance_IOU,
-                        instance_tp,
-                        instance_fp,
-                        instance_fn,
-                    ) = self.calc_advanced_metrics(true_mask[i, j], pred_mask[i, j])
-                else:
-                    (
-                        instance_IOU,
-                        instance_tp,
-                        instance_fp,
-                        instance_fn,
-                    ) = self.calc_basic_metrics(true_mask[i, j], pred_mask[i, j])
-
+                instance_IOU, instance_tp, instance_fp, instance_fn = self.calc_basic_metrics(true_mask[i, j], pred_mask[i, j])
                 batch_IOU[j] += instance_IOU
                 batch_tp[j] += instance_tp
                 batch_fp[j] += instance_fp
                 batch_fn[j] += instance_fn
+                    
+                advanced_instance_IOU, advanced_instance_tp, advanced_instance_fp, advanced_instance_fn = self.calc_advanced_metrics(true_mask[i, j], pred_mask[i, j])
+                advanced_batch_IOU[j] += advanced_instance_IOU
+                advanced_batch_tp[j] += advanced_instance_tp
+                advanced_batch_fp[j] += advanced_instance_fp
+                advanced_batch_fn[j] += advanced_instance_fn
 
         self.IOU += batch_IOU
         self.tp += batch_tp
         self.fp += batch_fp
         self.fn += batch_fn
+        
+        self.advanced_IOU += advanced_batch_IOU
+        self.advanced_tp += advanced_batch_tp
+        self.advanced_fp += advanced_batch_fp
+        self.advanced_fn += advanced_batch_fn
+        
+        
+        
 
     def calc_fp(self, true_mask, pred_mask):
         true_label = np.max(true_mask)
         if true_label == 0:
-            return 0
+            return 1
 
         false_positive_area = pred_mask * (1 - true_mask)
         # Площадь истинной маски и разности
@@ -213,10 +225,24 @@ class DetectionMetrics:
         area_fp = np.sum(false_positive_area)
 
         if area_true == 0:
-            return 0
+            return 1
         fp = np.ceil(area_fp / area_true)
 
-        return int(fp)
+        return int(fp)  #добавить в отдельные метрики, в первом експерименте обновлять старые, в другом новые 
+    
+    
+    
+    # lung_anatomy_classes = [{'id': 1,'name': 'Купола диафрагмы и нижележащая область',
+    # "summable_masks":[4], "subtractive_masks":[]},
+    # {'id': 2,'name': 'Нормальные контуры сердца', "summable_masks":[3],
+    # "subtractive_masks":[]},
+    # {'id': 3,'name': 'Правое легкое',
+    # "summable_masks":[1], "subtractive_masks":[]},
+    # {'id': 4,'name': 'Левое легкое',
+    # "summable_masks":[2], "subtractive_masks":[]},
+    # {'id': 5,'name': 'Кардиомегалия', "summable_masks":[12], "subtractive_masks":[]}, этот параметр если больше 0.6 то он есть, с ним я по сути сравниваюсь
+    # ]
+
 
     def calc_advanced_metrics(self, true_mask, pred_mask):
         instance_tp, instance_fp, instance_fn, instance_IOU = 0, 0, 0, 0
@@ -224,7 +250,7 @@ class DetectionMetrics:
 
         if true_label == 0:  # Нет объектов в истинной маске
             if np.max(pred_mask) != 0:  # Ложное срабатывание
-                instance_fp = self.calc_fp(true_mask, pred_mask)
+                instance_fp += self.calc_fp(true_mask, pred_mask)
         else:
             intersection = np.sum(true_mask * pred_mask)
             union = np.sum(np.logical_or(true_mask, pred_mask))
@@ -232,14 +258,14 @@ class DetectionMetrics:
             if intersection > 0:
                 detect_sum = intersection / np.sum(true_mask)
                 if detect_sum > 0.5:
-                    instance_tp = 1
+                    instance_tp += 1
                     instance_IOU = intersection / union
                 else:
-                    instance_fn = 1
-                    instance_fp = self.calc_fp(true_mask, pred_mask)
+                    instance_fn += 1
+                    instance_fp += self.calc_fp(true_mask, pred_mask)
             else:  # Пропущенный объект
-                instance_fn = 1
-                instance_fp = self.calc_fp(true_mask, pred_mask)
+                instance_fn += 1
+                instance_fp += self.calc_fp(true_mask, pred_mask)
 
         return instance_IOU, instance_tp, instance_fp, instance_fn
 
@@ -268,47 +294,6 @@ class DetectionMetrics:
 
         return instance_IOU, instance_tp, instance_fp, instance_fn
 
-    # old
-    # def calc_basic_metrics(self, true_mask, pred_mask):
-    #     instance_tp, instance_fp, instance_fn = 0, 0, 0
-    #     true_label = np.max(true_mask)
-    #
-    #     if true_label == 0:
-    #         instance_IOU = 0
-    #
-    #         if np.max(pred_mask) != 0:
-    #             pred_label = 1
-    #         else:
-    #             pred_label = 0
-    #
-    #     else:
-    #         intersection = np.sum(true_mask * pred_mask)
-    #         detect_sum = intersection / np.sum(true_mask)
-    #
-    #         if detect_sum > 0.5:
-    #             pred_label = 1
-    #             union = np.sum(np.logical_or(true_mask, pred_mask).astype(int))
-    #             instance_IOU = intersection / union
-    #         else:
-    #             pred_label = 0
-    #             instance_IOU = 0
-    #
-    #         # pred_label = 1 if detect_sum > 0.5 else 0
-    #         # instance_IOU = (
-    #         #     intersection / np.sum(np.logical_or(true_mask, pred_mask).astype(int))
-    #         #     if pred_label == 1
-    #         #     else 0
-    #         # )
-    #
-    #     if true_label == 1 and pred_label == 1:
-    #         instance_tp = 1
-    #     if true_label == 1 and pred_label == 0:
-    #         instance_fn = 1
-    #     if true_label == 0 and pred_label == 1:
-    #         instance_fp = 1
-    #
-    #     return instance_IOU, instance_tp, instance_fp, instance_fn
-
     def calc_metrics(self):
         (
             area_probs_AUROC,
@@ -323,13 +308,19 @@ class DetectionMetrics:
             confidence_F1,
         ) = self.calc_AUROC(self.all_true_labels, self.all_probs)
 
-        self.reset_metrics()
 
         with np.errstate(divide="ignore", invalid="ignore"):
             recall = np.nan_to_num(self.tp / (self.tp + self.fn))
             precision = np.nan_to_num(self.tp / (self.tp + self.fp))
             F1 = np.nan_to_num(2 * (recall * precision) / (recall + precision))
             IOU = np.nan_to_num(self.IOU / self.tp)
+            
+            advanced_recall = np.nan_to_num(self.advanced_tp / (self.advanced_tp + self.advanced_fn))
+            advanced_precision = np.nan_to_num(self.advanced_tp / (self.advanced_tp + self.advanced_fp))
+            advanced_F1 = np.nan_to_num(2 * (advanced_recall * advanced_precision) / (advanced_recall + advanced_precision))
+            advanced_IOU = np.nan_to_num(self.advanced_IOU / self.advanced_tp)
+
+        self.reset_metrics()
 
         metrics = {
             "IOU": torch.tensor(IOU),
@@ -344,6 +335,11 @@ class DetectionMetrics:
             "area_probs_recall": torch.tensor(area_probs_recall),
             "area_probs_precision": torch.tensor(area_probs_precision),
             "area_probs_F1": torch.tensor(area_probs_F1),
+            
+            "advanced_IOU": torch.tensor(advanced_IOU),
+            "advanced_recall": torch.tensor(advanced_recall),
+            "advanced_precision": torch.tensor(advanced_precision),
+            "advanced_F1": torch.tensor(advanced_F1),
         }
 
         return metrics
