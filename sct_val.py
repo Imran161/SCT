@@ -1,7 +1,7 @@
 import torch
 
 from utils import iou_metric, SCT_out_classes, ImageVisualizer
-from metrics import Detection_metrics
+from metrics import DetectionMetrics
 
 
 def test_model(
@@ -20,7 +20,7 @@ def test_model(
     val_image_visualizer = ImageVisualizer(val_predict_path)
 
     # writer = SummaryWriter(log_dir="weak_logs")
-    metrics_calculator = Detection_metrics(mode="ML", num_classes=num_classes)
+    metrics_calculator = DetectionMetrics(mode="ML", num_classes=num_classes)
 
     model.load_state_dict(torch.load(model_weight))
     model.to(device)

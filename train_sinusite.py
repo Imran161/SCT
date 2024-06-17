@@ -535,7 +535,7 @@ if __name__ == "__main__":
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
 
     model = smp.FPN(
-        encoder_name="efficientnet-b7",
+        encoder_name="efficientnet-b4",
         encoder_weights="imagenet",
         in_channels=1,
         classes=num_classes,
@@ -548,9 +548,9 @@ if __name__ == "__main__":
     lr_sched = None
 
     use_class_weight = True
-    use_pixel_weight = False
-    use_pixel_opt = False
-    power = "1.9_focal_sinusite_weak"
+    use_pixel_weight = True
+    use_pixel_opt = True
+    power = "2.2_sinusite_weak"
 
     exp_setup = ExperimentSetup(
         train_loader, total_train, pixel_total_train, batch_size, num_classes
