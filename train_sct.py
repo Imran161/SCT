@@ -1,27 +1,27 @@
-import random
-import os
-import numpy as np
-from torch.utils.data import DataLoader, Subset
-from torch.utils.tensorboard import SummaryWriter
-import torch
-import segmentation_models_pytorch as smp
-from tqdm import tqdm
-from torch.utils.data import ConcatDataset
-from torch.optim import Adam, AdamW
-from sklearn.exceptions import UndefinedMetricWarning
-import warnings
 import itertools
-from json_handler import JsonHandler
-from metrics import Detection_metrics
-from sct_val import test_model
-from utils import set_seed
+import os
+import random
+import warnings
 
+import numpy as np
+import segmentation_models_pytorch as smp
+import torch
+from sklearn.exceptions import UndefinedMetricWarning
+from torch.optim import Adam, AdamW
+from torch.utils.data import ConcatDataset, DataLoader, Subset
+from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
+
+from json_handler import JsonHandler
+from metrics import DetectionMetrics
+from sct_val import test_model
 from utils import (
+    ExperimentSetup,
+    ImageVisualizer,
     SCT_base_classes,
     SCT_out_classes,
     iou_metric,
-    ImageVisualizer,
-    ExperimentSetup,
+    set_seed,
 )
 
 
@@ -133,91 +133,6 @@ def make_dataloaders(subdirectories_list, batch_size):
     )
 
 
-class COCODataLoader:
-    def __init__(self, path, batch_size):
-        self.path = path
-        self.batch_size = batch_size
-
-    def convert_from_coco(self, path, probs):
-        sct_coco = JsonHandler(
-            json_file_path=path + "/",
-            delete_list=[],
-            base_classes=SCT_base_classes,
-            out_classes=SCT_out_classes,
-            delete_null=False,  # Всегда False
-            resize=(256, 256),
-            dataloader=True,
-            recalculate=False,
-            train_val_probs=probs,
-        )
-        return sct_coco
-
-    def make_dataloaders(self, subdirectories_list):
-        random.shuffle(subdirectories_list)
-
-        num_train_folders = int(0.8 * len(subdirectories_list))
-        train_folders = subdirectories_list[:num_train_folders]
-        val_folders = subdirectories_list[num_train_folders:]
-
-        all_train_data = []
-        all_val_data = []
-
-        count = 0
-        for s in train_folders:
-            sub_subdirectories_list = get_direct_subdirectories(s)
-
-            # print("s", s)
-            for i in sub_subdirectories_list:
-                try:
-                    sct_coco = self.convert_from_coco(i, 100)
-
-                    if count == 0:
-                        TotalTrain = np.copy(sct_coco.TotalTrain)
-                        pixel_TotalTrain = np.copy(sct_coco.pixel_TotalTrain)
-                    else:
-                        TotalTrain += sct_coco.TotalTrain
-                        pixel_TotalTrain += sct_coco.pixel_TotalTrain
-
-                    train_dataset = Subset(sct_coco, sct_coco.train_list)
-                    all_train_data.append(train_dataset)
-
-                    count += 1
-                except FileNotFoundError:
-                    print("no")
-
-        for s in val_folders:
-            sub_subdirectories_list = get_direct_subdirectories(s)
-
-            for i in sub_subdirectories_list:
-                # try:
-                sct_coco = self.convert_from_coco(i, 0)
-
-                val_dataset = Subset(sct_coco, sct_coco.val_list)
-                all_val_data.append(val_dataset)
-
-                count += 1
-                # except:
-                #     print("no")
-
-        concat_train_data = ConcatDataset(all_train_data)
-        concat_val_data = ConcatDataset(all_val_data)
-
-        train_loader = DataLoader(
-            concat_train_data, batch_size=self.batch_size, shuffle=True, num_workers=4
-        )
-        val_loader = DataLoader(
-            concat_val_data, batch_size=self.batch_size, shuffle=False, num_workers=4
-        )
-
-        return (
-            train_loader,
-            val_loader,
-            TotalTrain,
-            pixel_TotalTrain,
-            sct_coco.list_of_name_out_classes,
-        )
-
-
 def train_model(
     model,
     optimizer,
@@ -243,7 +158,7 @@ def train_model(
 
     # Создание объекта SummaryWriter для записи логов
     writer = SummaryWriter(log_dir=f"runs/{experiment_name}_logs")
-    metrics_calculator = Detection_metrics(mode="ML", num_classes=num_classes)
+    metrics_calculator = DetectionMetrics(mode="ML", num_classes=num_classes)
 
     class_names_dict = {
         class_info["id"]: class_info["name"] for class_info in SCT_out_classes
@@ -598,10 +513,6 @@ if __name__ == "__main__":
     # print("TotalTrain", TotalTrain) # [131669.  19075.   4210.   4014.   2525.]
     # print("len TotalTrain", len(TotalTrain)) # 5
     # так что теперь так
-    ###############################################################################################
-    # потом надо это использовать
-    # data_loader = COCODataLoader(path, batch_size)
-    # train_loader, val_loader, TotalTrain, pixel_TotalTrain, list_of_name_out_classes = data_loader.make_dataloaders(subdirectories_list)
 
     # train_loader_iter = iter(train_loader)
     # batch = next(train_loader_iter)

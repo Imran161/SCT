@@ -372,36 +372,6 @@ class JsonHandler:
                 # "rgb_image": rgb_image,
             }
             
-            
-            # короче что то с масками не так, они получаются какие то странные
-            
-            # unique_values, counts = np.unique(result["masks"], return_counts=True)
-            # for value, count in zip(unique_values, counts):
-            #     if value != 0 and value != 1:
-            #         print("idx", idx)
-            #         print(f'Значение: {value}, Количество: {count}')
-            
-            # photo_path = f"/home/imran-nasyrov/test_json_img_sin"
-            # if not os.path.exists(photo_path):
-            #     os.makedirs(photo_path)
-            # # print(result["images"], result["images"].detach().numpy().shape)
-            # # print(result["images"].detach().numpy())
-            # # print(type(result["images"].detach().numpy()))
-            
-            # mask = result["masks"]
-            # rgb_image = result["images"].detach().numpy()
-            # # print("rgb_image", rgb_image.shape)
-            # mask = mask.detach().numpy()
-            
-            # # for i in range(np.shape(mask)[0]):
-            # #         contours, h = cv2.findContours(mask[i].astype(int).astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-            # #         # print("contours", contours)
-            # #         rgb_image = cv2.drawContours(rgb_image, contours, -1, (255, 0, 0), 2)
-                    
-                        
-            # # cv2.imwrite(f"{photo_path}/test_img_sin_{idx}.jpg", image)
-            # cv2.imwrite(f"{photo_path}/test_msk_sin_{idx}.jpg", mask)
-            
             return result
         else:
             return gray_image, mask, rgb_image
