@@ -1,6 +1,6 @@
 import torch
 
-from utils import iou_metric, SCT_out_classes, ImageVisualizer
+from img_visualizer import ImageVisualizer
 from metrics import DetectionMetrics
 
 
@@ -33,10 +33,10 @@ def test_model(
     #     3: "Cубдуральное кровозлияние",
     #     4: "Эпидуральное кровозлияние",
     # }
-    
+
     class_names_dict = {
         1: "Снижение пневматизации околоносовых пазух",
-        2: "Горизонтальный уровень жидкость-воздух"
+        2: "Горизонтальный уровень жидкость-воздух",
     }
 
     # Инициализация переменных для метрик

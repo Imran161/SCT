@@ -11,44 +11,13 @@ from torch.utils.data._utils.collate import default_collate
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
+from coco_classes import sinusite_base_classes, sinusite_pat_classes_3
 from coco_dataloaders import SINUSITE_COCODataLoader
 from metrics import DetectionMetrics
-from utils import ExperimentSetup, iou_metric, set_seed
 from sct_val import test_model
+from utils import ExperimentSetup, iou_metric, set_seed
 
 set_seed(64)
-
-sinusite_base_classes = [
-    {"name": "Правая гайморова пазуха (внешний контур)", "id": 1},
-    {"name": "Левая гайморова пазуха (внешний контур)", "id": 2},
-    {"name": "Левая лобная пазуха (внешний контур)", "id": 3},
-    {"name": "Правая лобная пазуха (внешний контур)", "id": 4},
-    {"name": "Правая гайморова пазуха (граница внутренней пустоты)", "id": 5},
-    {"name": "Левая гайморова пазуха (граница внутренней пустоты)", "id": 6},
-    {"name": "Левая лобная пазуха (граница внутренней пустоты)", "id": 7},
-    {"name": "Правая лобная пазуха (граница внутренней пустоты)", "id": 8},
-    {"name": "Снижение пневматизации околоносовых пазух", "id": 9},
-    {"name": "Горизонтальный уровень жидкость-воздух", "id": 10},
-    {"name": "Отсутствие пневматизации околоносовых пазух", "id": 11},
-    {"name": "Иная патология", "id": 12},
-    {"name": "Надпись", "id": 13},
-]
-
-
-sinusite_pat_classes_3 = [
-    {
-        "name": "Снижение пневматизации околоносовых пазух",
-        "id": 1,
-        "summable_masks": [9, 11],
-        "subtractive_masks": [],
-    },
-    {
-        "name": "Горизонтальный уровень жидкость-воздух",
-        "id": 2,
-        "summable_masks": [10],
-        "subtractive_masks": [],
-    },
-]
 
 
 def get_direct_subdirectories(directory):
@@ -184,7 +153,9 @@ def train_model(
                 train_iou_sum += train_iou_batch
 
                 # для трейна метрики тоже посчитаю
-                metrics_calculator.update_counter(masks, outputs)#, advanced_metrics=True)
+                metrics_calculator.update_counter(
+                    masks, outputs
+                )  # , advanced_metrics=True)
 
                 # values, counts = np.unique(outputs.detach().cpu().numpy(), return_counts=True)
                 # for v, c in zip(values, counts):
@@ -270,7 +241,8 @@ def train_model(
                 val_iou_sum += val_iou_batch
 
                 metrics_calculator.update_counter(
-                    masks_val, outputs_val) # advanced_metrics=True)
+                    masks_val, outputs_val
+                )  # advanced_metrics=True)
 
                 # добавлю просто чтобы посмотреть
                 # outputs_val_list.append(outputs_val)
@@ -364,7 +336,7 @@ class Weight_opt_class:
         self.loss_class = loss
         self.classes = classes
 
-    # оптимизация старых метрик 
+    # оптимизация старых метрик
     # def opt_pixel_weight(self, metrics, pixel_all_class_weights=None):
     #     recall = metrics["recall"]
     #     precession = metrics["precision"]  # раньше precession было
@@ -424,11 +396,11 @@ class Weight_opt_class:
 
     #     return pixel_all_class_weights
 
+    # оптимизация новых метрик
 
-        # оптимизация новых метрик
     def opt_pixel_weight(self, metrics, pixel_all_class_weights=None):
         recall = metrics["advanced_recall"]
-        precession = metrics["advanced_precision"] # раньше precession было 
+        precession = metrics["advanced_precision"]  # раньше precession было
         F1Score = metrics["advanced_F1"]
 
         b = self.b
@@ -519,10 +491,11 @@ if __name__ == "__main__":
         masks = train_batch["masks"][:, 1:, :, :]
         # print("masks", masks.shape) torch.Size([6, 2, 1024, 1024])
         for i in range(len(images)):
-            coco_dataloader.show_image_with_mask(images[i][0].cpu().numpy(), masks[i].cpu().numpy(), i)
+            coco_dataloader.show_image_with_mask(
+                images[i][0].cpu().numpy(), masks[i].cpu().numpy(), i
+            )
         break  # Display only the first batch
 
-    
     print("total_train", total_train)
     print("len total_train", len(total_train))
     print("list_of_name_out_classes", list_of_name_out_classes)
@@ -591,6 +564,14 @@ if __name__ == "__main__":
     limited_train_loader = itertools.islice(train_loader, 6)
     limited_val_loader = itertools.islice(val_loader, 6)
 
-    avg_loss = test_model(model, model_weight, criterion,
-                            limited_train_loader, train_predict_path,
-                            limited_val_loader, val_predict_path, device, num_classes)
+    avg_loss = test_model(
+        model,
+        model_weight,
+        criterion,
+        limited_train_loader,
+        train_predict_path,
+        limited_val_loader,
+        val_predict_path,
+        device,
+        num_classes,
+    )
