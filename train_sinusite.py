@@ -15,6 +15,7 @@ from coco_classes import sinusite_base_classes, sinusite_pat_classes_3
 from coco_dataloaders import SINUSITE_COCODataLoader
 from metrics import DetectionMetrics
 from sct_val import test_model
+from transforms import SegTransform
 from utils import ExperimentSetup, iou_metric, set_seed
 
 set_seed(64)
@@ -55,6 +56,7 @@ def train_model(
     all_class_weights,
     alpha,
     use_opt_pixel_weight,
+    use_augmentation=False,
 ):
     # Создание объекта SummaryWriter для записи логов
     writer = SummaryWriter(log_dir=f"runs_sinusite/{experiment_name}_logs")
@@ -78,6 +80,9 @@ def train_model(
         alpha_no_fon = torch.tensor(alpha_no_fon).to(device)
     else:
         alpha_no_fon = None
+
+    if use_augmentation:
+        seg_transform = SegTransform()
 
     for epoch in range(num_epochs):
         # убрал
@@ -113,6 +118,9 @@ def train_model(
                 masks = train_batch["masks"][:, 1:, :, :].to(device)
                 # print("masks.shape", masks.shape)
                 # print("images.shape", images.shape)
+
+                if use_augmentation:
+                    images, masks = seg_transform.apply_transform(images, masks)
 
                 if all_class_weights is not None:
                     all_weights_no_fon = [x[1:] for x in all_class_weights]
@@ -552,6 +560,7 @@ if __name__ == "__main__":
     #     all_class_weights=all_class_weights,
     #     alpha=pixel_all_class_weights,
     #     use_opt_pixel_weight=use_pixel_opt,
+    #     use_augmentation=False
     # )
 
     # это картинки нарисует предсказанные
