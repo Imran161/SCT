@@ -115,7 +115,8 @@ class ExperimentSetup:
             else:
                 pixel_all_class_weights.append(pixel_class_weights)
 
-        experiment_name = f"{power}_loss_clsW_{self.use_cls}_pixW_{self.use_pixel}_pixOpt_{self.use_pixel_opt}"
+        # experiment_name = f"{power}_loss_clsW_{self.use_cls}_pixW_{self.use_pixel}_pixOpt_{self.use_pixel_opt}"
+        experiment_name = f"{power}_loss_class_weights_{self.use_cls}_pixel_weights_{self.use_pixel}_pixel_opt_{self.use_pixel_opt}"
 
         if "weak_loss" in experiment_name:
             criterion = weak_combined_loss

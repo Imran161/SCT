@@ -6,7 +6,7 @@ import numpy as np
 from torch.utils.data import ConcatDataset, DataLoader, Subset
 
 from json_handler import JsonHandler
-from utils import (
+from coco_classes import (
     SCT_base_classes,
     SCT_out_classes,
 )

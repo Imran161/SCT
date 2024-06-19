@@ -23,46 +23,109 @@ from utils import ExperimentSetup, iou_metric, set_seed
 set_seed(64)
 
 
+# def save_best_metrics_to_csv(best_metrics, csv_file):
+#     # Проверка, существует ли CSV файл. Если нет, создаем и записываем заголовки.
+#     file_exists = os.path.isfile(csv_file)
+
+#     with open(csv_file, mode="a", newline="") as file:
+#         writer = csv.writer(file)
+
+#         if not file_exists:
+#             num_classes_iou = len(best_metrics["val_metrics"]["IOU"])
+#             num_classes_f1 = len(best_metrics["val_metrics"]["F1"])
+#             num_classes_area_probs_f1 = len(best_metrics["val_metrics"]["area_probs_F1"])
+
+#             headers = (
+#                 ["experiment"]
+#                 + [f"val_iou_class_{i}" for i in range(num_classes_iou)]
+#                 + [f"val_f1_class_{i}" for i in range(num_classes_f1)]
+#                 + [f"val_area_probs_f1_class_{i}" for i in range(num_classes_area_probs_f1)]
+#                 + ["mean_iou", "mean_f1", "mean_area_probs_f1"]
+#             )
+#             writer.writerow(headers)
+
+#         row = (
+#             [best_metrics["experiment"]]
+#             + best_metrics["val_metrics"]["IOU"].tolist()
+#             + best_metrics["val_metrics"]["F1"].tolist()
+#             + best_metrics["val_metrics"]["area_probs_F1"].tolist()
+#             + [
+#                 best_metrics["val_metrics"]["IOU"].mean().item(),
+#                 best_metrics["val_metrics"]["F1"].mean().item(),
+#                 best_metrics["val_metrics"]["area_probs_F1"].mean().item(),
+#             ]
+#         )
+#         writer.writerow(row)
+
 def save_best_metrics_to_csv(best_metrics, csv_file):
-    # Проверка, существует ли CSV файл. Если нет, создаем и записываем заголовки.
+    # Проверка, существует ли CSV файл
     file_exists = os.path.isfile(csv_file)
 
-    with open(csv_file, mode="a", newline="") as file:
-        writer = csv.writer(file)
-
-        if not file_exists:
-            # Запись заголовков
-            headers = (
-                ["experiment"]
-                + [
-                    "val_iou_class_" + str(i)
-                    for i in range(len(best_metrics["val_iou"]))
-                ]
-                + [
-                    "val_f1_class_" + str(i)
-                    for i in range(len(best_metrics["metrics"]["F1"]))
-                ]
-                + [
-                    "val_area_probs_f1_class_" + str(i)
-                    for i in range(len(best_metrics["metrics"]["area_probs_F1"]))
-                ]
-                + ["mean_iou", "mean_f1", "mean_area_probs_f1"]
-            )
-            writer.writerow(headers)
-
-        # Запись данных
-        row = (
-            [best_metrics["experiment"]]
-            + best_metrics["val_iou"]
-            + best_metrics["metrics"]["F1"]
-            + best_metrics["metrics"]["area_probs_F1"]
+    # Если файл существует, считываем данные
+    if file_exists:
+        with open(csv_file, mode="r", newline="") as file:
+            reader = csv.reader(file)
+            data = list(reader)
+        headers = data[0]
+        rows = data[1:]
+    else:
+        # Если файл не существует, инициализируем заголовки и строки
+        headers = (
+            ["experiment", "epoch", "train_loss", "val_loss"]
             + [
-                best_metrics["metrics"]["IOU"].mean().item(),
-                best_metrics["metrics"]["F1"].mean().item(),
-                best_metrics["metrics"]["area_probs_F1"].mean().item(),
+                "val_iou_class_" + str(i)
+                for i in range(best_metrics["val_metrics"]["IOU"].size(0))
             ]
+            + [
+                "val_f1_class_" + str(i)
+                for i in range(best_metrics["val_metrics"]["F1"].size(0))
+            ]
+            + [
+                "val_area_probs_f1_class_" + str(i)
+                for i in range(best_metrics["val_metrics"]["area_probs_F1"].size(0))
+            ]
+            + ["val_mean_iou", "val_mean_f1", "val_mean_area_probs_f1"]
         )
-        writer.writerow(row)
+        rows = []
+
+    val_iou = [round(v.item(), 2) for v in best_metrics["val_metrics"]["IOU"]]
+    val_f1 = [round(v.item(), 2) for v in best_metrics["val_metrics"]["F1"]]
+    val_area_probs_f1 = [round(v.item(), 2) for v in best_metrics["val_metrics"]["area_probs_F1"]]
+
+    
+    # Создаем строку с данными метрик
+    row = (
+        [best_metrics["experiment"], best_metrics["epoch"], round(best_metrics["train_loss"], 2), round(best_metrics["val_loss"], 2)]
+        # + best_metrics["val_metrics"]["IOU"].tolist()
+        # + best_metrics["val_metrics"]["F1"].tolist()
+        # + best_metrics["val_metrics"]["area_probs_F1"].tolist()
+        + val_iou
+        + val_f1
+        + val_area_probs_f1
+        + [
+            round(best_metrics["val_metrics"]["IOU"].mean().item(), 2),
+            round(best_metrics["val_metrics"]["F1"].mean().item(), 2),
+            round(best_metrics["val_metrics"]["area_probs_F1"].mean().item(), 2),
+        ]
+    )
+
+    # Проверяем, есть ли запись для текущего эксперимента, и обновляем ее
+    experiment_exists = False
+    for i, existing_row in enumerate(rows):
+        if existing_row[0] == best_metrics["experiment"]:
+            rows[i] = row
+            experiment_exists = True
+            break
+
+    # Если записи для текущего эксперимента нет, добавляем новую строку
+    if not experiment_exists:
+        rows.append(row)
+
+    # Записываем обновленные данные обратно в CSV файл
+    with open(csv_file, mode="w", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow(headers)
+        writer.writerows(rows)
 
 
 def get_direct_subdirectories(directory):
@@ -361,35 +424,28 @@ def train_model(
         if val_loss_avg < best_loss:
             best_loss = val_loss_avg
 
+            # Сохранение метрик в CSV
+            best_metrics = {
+                "experiment": experiment_name.split("_")[0],
+                "epoch": epoch,
+                "train_loss": train_loss_avg,
+                "val_loss": val_loss_avg,
+                "val_metrics": {
+                    "IOU": val_metrics["IOU"],
+                    "F1": val_metrics["F1"],
+                    "area_probs_F1": val_metrics["area_probs_F1"],
+                }
+            }
+            
             best_model_path = "sinusite_best_models"
             if not os.path.exists(best_model_path):
                 os.makedirs(best_model_path)
-
+                
             torch.save(
                 model.state_dict(),
                 f"{best_model_path}/best_{experiment_name}_model.pth",
             )
-
-            # Сохранение метрик в CSV
-            best_metrics = {
-                "experiment": experiment_name,
-                "epoch": epoch + 1,
-                "train_loss": train_loss_avg,
-                "val_loss": val_loss_avg,
-                "train_iou": train_iou_avg.tolist(),
-                "val_iou": val_iou_avg.tolist(),
-                "val_metrics": {
-                    "IOU": val_metrics["IOU"].tolist()
-                    if isinstance(val_metrics["IOU"], torch.Tensor)
-                    else val_metrics["IOU"],
-                    "F1": val_metrics["F1"].tolist()
-                    if isinstance(val_metrics["F1"], torch.Tensor)
-                    else val_metrics["F1"],
-                    "area_probs_F1": val_metrics["area_probs_F1"].tolist()
-                    if isinstance(val_metrics["area_probs_F1"], torch.Tensor)
-                    else val_metrics["area_probs_F1"],
-                },
-            }
+            
             csv_file = f"{best_model_path}/best_metrics.csv"
             save_best_metrics_to_csv(best_metrics, csv_file)
 
@@ -583,7 +639,7 @@ if __name__ == "__main__":
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
 
     model = smp.FPN(
-        encoder_name="efficientnet-b7",
+        encoder_name="resnet50",
         encoder_weights="imagenet",
         in_channels=1,
         classes=num_classes,
@@ -596,9 +652,9 @@ if __name__ == "__main__":
     lr_sched = None
 
     use_class_weight = True
-    use_pixel_weight = False
-    use_pixel_opt = False
-    power = "1.9_focal_sinusite_weak"
+    use_pixel_weight = True
+    use_pixel_opt = True
+    power = "2.3_sinusite_weak"
 
     exp_setup = ExperimentSetup(
         train_loader, total_train, pixel_total_train, batch_size, num_classes
@@ -613,22 +669,22 @@ if __name__ == "__main__":
         use_class_weight, use_pixel_weight, use_pixel_opt, power
     )
 
-    # train_model(
-    #     model,
-    #     optimizer,
-    #     criterion,
-    #     lr_sched,
-    #     num_epochs,
-    #     train_loader,
-    #     val_loader,
-    #     device,
-    #     num_classes,
-    #     experiment_name,
-    #     all_class_weights=all_class_weights,
-    #     alpha=pixel_all_class_weights,
-    #     use_opt_pixel_weight=use_pixel_opt,
-    #     use_augmentation=False
-    # )
+    train_model(
+        model,
+        optimizer,
+        criterion,
+        lr_sched,
+        num_epochs,
+        train_loader,
+        val_loader,
+        device,
+        num_classes,
+        experiment_name,
+        all_class_weights=all_class_weights,
+        alpha=pixel_all_class_weights,
+        use_opt_pixel_weight=use_pixel_opt,
+        use_augmentation=False
+    )
 
     # это картинки нарисует предсказанные
 
@@ -640,14 +696,14 @@ if __name__ == "__main__":
     limited_train_loader = itertools.islice(train_loader, 6)
     limited_val_loader = itertools.islice(val_loader, 6)
 
-    avg_loss = test_model(
-        model,
-        model_weight,
-        criterion,
-        limited_train_loader,
-        train_predict_path,
-        limited_val_loader,
-        val_predict_path,
-        device,
-        num_classes,
-    )
+    # avg_loss = test_model(
+    #     model,
+    #     model_weight,
+    #     criterion,
+    #     limited_train_loader,
+    #     train_predict_path,
+    #     limited_val_loader,
+    #     val_predict_path,
+    #     device,
+    #     num_classes,
+    # )
