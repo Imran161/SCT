@@ -1,8 +1,10 @@
 import itertools
 import os
+import csv
 import warnings
 
 import numpy as np
+import pandas as pd
 import segmentation_models_pytorch as smp
 import torch
 from sklearn.exceptions import UndefinedMetricWarning
@@ -19,6 +21,48 @@ from transforms import SegTransform
 from utils import ExperimentSetup, iou_metric, set_seed
 
 set_seed(64)
+
+
+def save_best_metrics_to_csv(best_metrics, csv_file):
+    # Проверка, существует ли CSV файл. Если нет, создаем и записываем заголовки.
+    file_exists = os.path.isfile(csv_file)
+
+    with open(csv_file, mode="a", newline="") as file:
+        writer = csv.writer(file)
+
+        if not file_exists:
+            # Запись заголовков
+            headers = (
+                ["experiment"]
+                + [
+                    "val_iou_class_" + str(i)
+                    for i in range(len(best_metrics["val_iou"]))
+                ]
+                + [
+                    "val_f1_class_" + str(i)
+                    for i in range(len(best_metrics["metrics"]["F1"]))
+                ]
+                + [
+                    "val_area_probs_f1_class_" + str(i)
+                    for i in range(len(best_metrics["metrics"]["area_probs_F1"]))
+                ]
+                + ["mean_iou", "mean_f1", "mean_area_probs_f1"]
+            )
+            writer.writerow(headers)
+
+        # Запись данных
+        row = (
+            [best_metrics["experiment"]]
+            + best_metrics["val_iou"]
+            + best_metrics["metrics"]["F1"]
+            + best_metrics["metrics"]["area_probs_F1"]
+            + [
+                best_metrics["metrics"]["IOU"].mean().item(),
+                best_metrics["metrics"]["F1"].mean().item(),
+                best_metrics["metrics"]["area_probs_F1"].mean().item(),
+            ]
+        )
+        writer.writerow(row)
 
 
 def get_direct_subdirectories(directory):
@@ -278,17 +322,17 @@ def train_model(
         # обработаю исключение но не знаю хорошая идея или нет
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=UndefinedMetricWarning)
-            metrics = metrics_calculator.calc_metrics()
+            val_metrics = metrics_calculator.calc_metrics()
 
         # было так
-        # for key, value in metrics.items():
+        # for key, value in val_metrics.items():
         #     if isinstance(value, torch.Tensor):
         #         writer.add_scalar(f"Val/{key}", value.mean().item(), epoch)
         #     elif isinstance(value, list):
         #         for i, val in enumerate(value):
         #             writer.add_scalar(f"Val/{key}/Class_{i}", val.item(), epoch)
 
-        for key, value in metrics.items():
+        for key, value in val_metrics.items():
             if isinstance(value, torch.Tensor):
                 if len(value.size()) > 0:
                     # добавил среднюю метрику по классам
@@ -325,6 +369,29 @@ def train_model(
                 model.state_dict(),
                 f"{best_model_path}/best_{experiment_name}_model.pth",
             )
+
+            # Сохранение метрик в CSV
+            best_metrics = {
+                "experiment": experiment_name,
+                "epoch": epoch + 1,
+                "train_loss": train_loss_avg,
+                "val_loss": val_loss_avg,
+                "train_iou": train_iou_avg.tolist(),
+                "val_iou": val_iou_avg.tolist(),
+                "val_metrics": {
+                    "IOU": val_metrics["IOU"].tolist()
+                    if isinstance(val_metrics["IOU"], torch.Tensor)
+                    else val_metrics["IOU"],
+                    "F1": val_metrics["F1"].tolist()
+                    if isinstance(val_metrics["F1"], torch.Tensor)
+                    else val_metrics["F1"],
+                    "area_probs_F1": val_metrics["area_probs_F1"].tolist()
+                    if isinstance(val_metrics["area_probs_F1"], torch.Tensor)
+                    else val_metrics["area_probs_F1"],
+                },
+            }
+            csv_file = f"{best_model_path}/best_metrics.csv"
+            save_best_metrics_to_csv(best_metrics, csv_file)
 
     last_model_path = "sinusite_last_models"
     if not os.path.exists(last_model_path):
