@@ -6,6 +6,7 @@ import warnings
 import numpy as np
 import pandas as pd
 import segmentation_models_pytorch as smp
+from transformers import SegformerForSemanticSegmentation, SegformerFeatureExtractor, SegformerConfig
 import torch
 from sklearn.exceptions import UndefinedMetricWarning
 from torch.optim import Adam
@@ -638,13 +639,29 @@ if __name__ == "__main__":
     print(device)
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
 
-    model = smp.FPN(
-        encoder_name="timm-gernet_m",
-        encoder_weights="imagenet",
-        in_channels=1,
-        classes=num_classes,
-    )
-    # model = smp.Unet(encoder_name="resnext50_32x4d", encoder_weights = "imagenet", in_channels = 1, classes=num_classes)
+    # model = smp.FPN(
+    #     encoder_name="timm-gernet_m",
+    #     encoder_weights="imagenet",
+    #     in_channels=1,
+    #     classes=num_classes,
+    # )
+   
+    # пробую segformer 
+    # model = SegformerForSemanticSegmentation.from_pretrained("nvidia/segformer-b0-finetuned-ade-512-512",
+    #                                                          num_channels=1, 
+    #                                                          num_labels=2)
+    # feature_extractor = SegformerFeatureExtractor.from_pretrained("nvidia/segformer-b0-finetuned-ade-512-512",
+                                                                #   num_channels=1)
+    
+    config = SegformerConfig.from_pretrained("nvidia/segformer-b0-finetuned-ade-512-512")
+    config.num_channels = 1  # Изменение на одноканальные изображения
+    config.num_labels = 2    # Изменение на два класса
+
+    # Создание новой модели с этой конфигурацией
+    model = SegformerForSemanticSegmentation(config)
+    
+    
+    
     learning_rate = 3e-4
     num_epochs = 120
 
