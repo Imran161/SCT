@@ -6,7 +6,14 @@ import warnings
 import numpy as np
 import pandas as pd
 import segmentation_models_pytorch as smp
-from transformers import SegformerForSemanticSegmentation, SegformerFeatureExtractor, SegformerConfig
+import torch.nn as nn
+from transformers import (
+    SegformerForSemanticSegmentation,
+    SegformerFeatureExtractor,
+    SegformerConfig,
+    AutoImageProcessor,
+    AutoModelForImageSegmentation,
+)
 import torch
 from sklearn.exceptions import UndefinedMetricWarning
 from torch.optim import Adam
@@ -23,40 +30,6 @@ from utils import ExperimentSetup, iou_metric, set_seed
 
 set_seed(64)
 
-
-# def save_best_metrics_to_csv(best_metrics, csv_file):
-#     # Проверка, существует ли CSV файл. Если нет, создаем и записываем заголовки.
-#     file_exists = os.path.isfile(csv_file)
-
-#     with open(csv_file, mode="a", newline="") as file:
-#         writer = csv.writer(file)
-
-#         if not file_exists:
-#             num_classes_iou = len(best_metrics["val_metrics"]["IOU"])
-#             num_classes_f1 = len(best_metrics["val_metrics"]["F1"])
-#             num_classes_area_probs_f1 = len(best_metrics["val_metrics"]["area_probs_F1"])
-
-#             headers = (
-#                 ["experiment"]
-#                 + [f"val_iou_class_{i}" for i in range(num_classes_iou)]
-#                 + [f"val_f1_class_{i}" for i in range(num_classes_f1)]
-#                 + [f"val_area_probs_f1_class_{i}" for i in range(num_classes_area_probs_f1)]
-#                 + ["mean_iou", "mean_f1", "mean_area_probs_f1"]
-#             )
-#             writer.writerow(headers)
-
-#         row = (
-#             [best_metrics["experiment"]]
-#             + best_metrics["val_metrics"]["IOU"].tolist()
-#             + best_metrics["val_metrics"]["F1"].tolist()
-#             + best_metrics["val_metrics"]["area_probs_F1"].tolist()
-#             + [
-#                 best_metrics["val_metrics"]["IOU"].mean().item(),
-#                 best_metrics["val_metrics"]["F1"].mean().item(),
-#                 best_metrics["val_metrics"]["area_probs_F1"].mean().item(),
-#             ]
-#         )
-#         writer.writerow(row)
 
 def save_best_metrics_to_csv(best_metrics, csv_file):
     # Проверка, существует ли CSV файл
@@ -91,12 +64,18 @@ def save_best_metrics_to_csv(best_metrics, csv_file):
 
     val_iou = [round(v.item(), 2) for v in best_metrics["val_metrics"]["IOU"]]
     val_f1 = [round(v.item(), 2) for v in best_metrics["val_metrics"]["F1"]]
-    val_area_probs_f1 = [round(v.item(), 2) for v in best_metrics["val_metrics"]["area_probs_F1"]]
+    val_area_probs_f1 = [
+        round(v.item(), 2) for v in best_metrics["val_metrics"]["area_probs_F1"]
+    ]
 
-    
     # Создаем строку с данными метрик
     row = (
-        [best_metrics["experiment"], best_metrics["epoch"], round(best_metrics["train_loss"], 2), round(best_metrics["val_loss"], 2)]
+        [
+            best_metrics["experiment"],
+            best_metrics["epoch"],
+            round(best_metrics["train_loss"], 2),
+            round(best_metrics["val_loss"], 2),
+        ]
         # + best_metrics["val_metrics"]["IOU"].tolist()
         # + best_metrics["val_metrics"]["F1"].tolist()
         # + best_metrics["val_metrics"]["area_probs_F1"].tolist()
@@ -252,6 +231,7 @@ def train_model(
                 # images = images.double()
                 # model = model.double()
                 outputs = model(images)
+                print("Type of outputs after model:", type(outputs))
                 # print("outputs shape", outputs.shape) # torch.Size([16, 5, 256, 256])
                 # print("outputs before sigm", outputs)
                 outputs = torch.sigmoid(outputs)
@@ -435,20 +415,32 @@ def train_model(
                     "IOU": val_metrics["IOU"],
                     "F1": val_metrics["F1"],
                     "area_probs_F1": val_metrics["area_probs_F1"],
-                }
+                },
             }
-            
+
             best_model_path = "sinusite_best_models"
             if not os.path.exists(best_model_path):
                 os.makedirs(best_model_path)
-                
+
             torch.save(
                 model.state_dict(),
                 f"{best_model_path}/best_{experiment_name}_model.pth",
             )
-            
+
             csv_file = f"{best_model_path}/best_metrics.csv"
             save_best_metrics_to_csv(best_metrics, csv_file)
+
+    last_metrics = {
+        "experiment": experiment_name.split("_")[0],
+        "epoch": epoch,
+        "train_loss": train_loss_avg,
+        "val_loss": val_loss_avg,
+        "val_metrics": {
+            "IOU": val_metrics["IOU"],
+            "F1": val_metrics["F1"],
+            "area_probs_F1": val_metrics["area_probs_F1"],
+        },
+    }
 
     last_model_path = "sinusite_last_models"
     if not os.path.exists(last_model_path):
@@ -457,6 +449,9 @@ def train_model(
     torch.save(
         model.state_dict(), f"{last_model_path}/last_{experiment_name}_model.pth"
     )
+
+    last_csv_file = f"{last_model_path}/last_metrics.csv"
+    save_best_metrics_to_csv(last_metrics, last_csv_file)
 
     writer.close()
 
@@ -645,23 +640,45 @@ if __name__ == "__main__":
     #     in_channels=1,
     #     classes=num_classes,
     # )
-   
-    # пробую segformer 
+
+    # пробую segformer
     # model = SegformerForSemanticSegmentation.from_pretrained("nvidia/segformer-b0-finetuned-ade-512-512",
-    #                                                          num_channels=1, 
+    #                                                          num_channels=1,
     #                                                          num_labels=2)
     # feature_extractor = SegformerFeatureExtractor.from_pretrained("nvidia/segformer-b0-finetuned-ade-512-512",
-                                                                #   num_channels=1)
-    
-    config = SegformerConfig.from_pretrained("nvidia/segformer-b0-finetuned-ade-512-512")
+    #   num_channels=1)
+
+    config = SegformerConfig.from_pretrained(
+        "nvidia/segformer-b0-finetuned-ade-512-512"
+    )
     config.num_channels = 1  # Изменение на одноканальные изображения
-    config.num_labels = 2    # Изменение на два класса
+    config.num_labels = 2  # Изменение на два класса
 
     # Создание новой модели с этой конфигурацией
-    model = SegformerForSemanticSegmentation(config)
-    
-    
-    
+    # model = SegformerForSemanticSegmentation(config)
+
+    # пробую florence-2
+    image_processor = AutoImageProcessor.from_pretrained("microsoft/florence-2")
+    model = AutoModelForImageSegmentation.from_pretrained("microsoft/florence-2")
+
+    # Пример настройки модели для одноканальных изображений
+    class FlorenceSegmentationModel(nn.Module):
+        def __init__(self, model):
+            super(FlorenceSegmentationModel, self).__init__()
+            self.model = model
+
+        def forward(self, x):
+            # Преобразование одноканального изображения в трехканальное
+            x = x.repeat(1, 3, 1, 1)
+            outputs = self.model(pixel_values=x)
+
+            print("Type of outputs:", type(outputs))
+            print("Keys in outputs:", outputs.keys())
+            print("outputs.logits shape", outputs.logits.shape)
+            return outputs.logits
+
+    model = FlorenceSegmentationModel(model).to(device)
+
     learning_rate = 3e-4
     num_epochs = 120
 
@@ -700,7 +717,7 @@ if __name__ == "__main__":
         all_class_weights=all_class_weights,
         alpha=pixel_all_class_weights,
         use_opt_pixel_weight=use_pixel_opt,
-        use_augmentation=False
+        use_augmentation=False,
     )
 
     # это картинки нарисует предсказанные
