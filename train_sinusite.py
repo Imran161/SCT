@@ -6,6 +6,7 @@ import warnings
 import numpy as np
 import pandas as pd
 import segmentation_models_pytorch as smp
+import torch.nn.functional as F
 import torch.nn as nn
 from transformers import (
     SegformerForSemanticSegmentation,
@@ -13,6 +14,8 @@ from transformers import (
     SegformerConfig,
     AutoImageProcessor,
     AutoModelForImageSegmentation,
+    AutoProcessor,
+    AutoModelForCausalLM,
 )
 import torch
 from sklearn.exceptions import UndefinedMetricWarning
@@ -129,6 +132,22 @@ def custom_collate_fn(batch):
     return {"images": collated_images, "masks": collated_masks}
 
 
+# def add_noise_to_mask(mask, noise_level=0.1):
+#     mask = mask.float()
+#     noise = torch.randn_like(mask) * noise_level
+#     noisy_mask = mask + noise
+#     return torch.clamp(noisy_mask, 0, 1)
+
+
+def add_noise_to_mask(mask, max_m=3, max_n=3):
+    mask = mask.float()  # Преобразуем маску к типу float
+    noise = torch.rand_like(mask)  # Генерируем равномерный шум на [0, 1]
+    m = torch.randint(1, max_m + 1, (1,)).item()  # Генерируем целое число от 1 до max_m включительно
+    n = torch.randint(0, max_n + 1, (1,)).item()  # Генерируем целое число от 0 до max_n включительно
+    noisy_mask = (m * mask + n * noise) / (m + n)
+    return noisy_mask
+
+
 def train_model(
     model,
     optimizer,
@@ -143,6 +162,9 @@ def train_model(
     all_class_weights,
     alpha,
     use_opt_pixel_weight,
+    num_cyclic_steps,  # количество циклических шагов на валидации
+    max_n=3,
+    max_k=3,
     use_augmentation=False,
 ):
     # Создание объекта SummaryWriter для записи логов
@@ -193,21 +215,19 @@ def train_model(
             for train_batch in train_loader:
                 optimizer.zero_grad()
                 images = train_batch["images"].to(device)
-                # images = images.to(device)
-                # rgb_image = train_batch["rgb_image"]
-                # print("rgb_image", rgb_image.shape) # torch.Size([32, 512, 512, 3])
-                # print("rgb_image", rgb_image[0, :, : ,0].shape) # torch.Size([512, 512])
-                # cv2.imwrite(f"/home/imran-nasyrov/sct_project/sct_data/train_rgb_images/rgb_image[0,0].jpg", rgb_image[0].cpu().numpy())
-                # # это нормально сохраняет
-
-                # masks = masks[:][1:] # убрал фон
-                # masks = masks.to(device)
                 masks = train_batch["masks"][:, 1:, :, :].to(device)
                 # print("masks.shape", masks.shape)
                 # print("images.shape", images.shape)
 
                 if use_augmentation:
                     images, masks = seg_transform.apply_transform(images, masks)
+
+                # шум к маске
+                noisy_masks = add_noise_to_mask(masks, max_n, max_k)
+                noisy_masks = noisy_masks.to(device)
+                
+                # шумная маска на изображение
+                inputs = images + noisy_masks
 
                 if all_class_weights is not None:
                     all_weights_no_fon = [x[1:] for x in all_class_weights]
@@ -230,27 +250,34 @@ def train_model(
 
                 # images = images.double()
                 # model = model.double()
-                outputs = model(images)
-                print("Type of outputs after model:", type(outputs))
+                outputs = model(inputs)
                 # print("outputs shape", outputs.shape) # torch.Size([16, 5, 256, 256])
                 # print("outputs before sigm", outputs)
-                outputs = torch.sigmoid(outputs)
+                outputs = torch.tanh(outputs)
                 # print("outputs after", outputs) # от 0 до 1
 
-                loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
+
+                # Вычитаем предсказанный шум из исходного изображения
+                corrected_masks = (noisy_masks - outputs + 1) / 3
+
+                # шумная маска
+                # менять уровень шума радномно для каждой картинке 
+                # надо чтобы сетка искала шум а потом вичитала его из маски 
+                # в критерий подается начальная маска и noise_to_mask - шум
+                loss = criterion(corrected_masks, masks, all_weights_no_fon, alpha_no_fon)
 
                 loss.backward()
                 optimizer.step()
                 train_loss_sum += loss.item()
 
-                train_iou_batch = iou_metric(outputs, masks, num_classes)
+                train_iou_batch = iou_metric(corrected_masks, masks, num_classes)
                 # train_iou_sum += torch.sum(train_iou_batch, dim=0)  # Суммирование IoU для каждого класса по всем батчам
                 # вроде так
                 train_iou_sum += train_iou_batch
 
                 # для трейна метрики тоже посчитаю
                 metrics_calculator.update_counter(
-                    masks, outputs
+                    masks, corrected_masks
                 )  # , advanced_metrics=True)
 
                 # values, counts = np.unique(outputs.detach().cpu().numpy(), return_counts=True)
@@ -325,19 +352,34 @@ def train_model(
                 # print("values", values) # тут не нули
                 # print("images_val[0,0]", images_val[0,0]) # а тут нули
                 masks_val = val_batch["masks"][:, 1:].to(device)
-                outputs_val = model(images_val)
 
-                outputs_val = torch.sigmoid(outputs_val)
 
-                val_loss_sum += criterion(outputs_val, masks_val, None, None).item()
+                # Добавляем шум один раз
+                noisy_masks_val = add_noise_to_mask(masks_val, max_n, max_k)
+                noisy_masks_val = noisy_masks_val.to(device)
+
+                inputs_val = images_val + noisy_masks_val
+                outputs_val = model(inputs_val)
+                outputs_val = torch.tanh(outputs_val)
+                corrected_masks_val = (noisy_masks_val - outputs_val + 1) / 3
+
+
+                # Циклический процесс для предсказаний
+                # сделать ноль этого цикла, на тесте сделаем цикл
+                # for _ in range(num_cyclic_steps):
+                #     outputs_val = model(images_val)
+                #     outputs_val = torch.sigmoid(outputs_val)
+
+
+                val_loss_sum += criterion(corrected_masks_val, masks_val, None, None).item()
 
                 # val_iou_batch = iou_pytorch(outputs_val, masks_val, classes)
 
-                val_iou_batch = iou_metric(outputs_val, masks_val, num_classes)
+                val_iou_batch = iou_metric(corrected_masks_val, masks_val, num_classes)
                 val_iou_sum += val_iou_batch
 
                 metrics_calculator.update_counter(
-                    masks_val, outputs_val
+                    masks_val, corrected_masks_val
                 )  # advanced_metrics=True)
 
                 # добавлю просто чтобы посмотреть
@@ -630,54 +672,82 @@ if __name__ == "__main__":
     print("len val_loader", len(val_loader))
     print("len train_loader", len(train_loader))
 
-    device = torch.device("cuda:2")
+    device = torch.device("cuda:1")
     print(device)
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
 
-    # model = smp.FPN(
-    #     encoder_name="timm-gernet_m",
-    #     encoder_weights="imagenet",
-    #     in_channels=1,
-    #     classes=num_classes,
-    # )
-
-    # пробую segformer
-    # model = SegformerForSemanticSegmentation.from_pretrained("nvidia/segformer-b0-finetuned-ade-512-512",
-    #                                                          num_channels=1,
-    #                                                          num_labels=2)
-    # feature_extractor = SegformerFeatureExtractor.from_pretrained("nvidia/segformer-b0-finetuned-ade-512-512",
-    #   num_channels=1)
-
-    config = SegformerConfig.from_pretrained(
-        "nvidia/segformer-b0-finetuned-ade-512-512"
+    model = smp.FPN(
+        encoder_name="resnet50",
+        encoder_weights="imagenet",
+        in_channels=2,
+        # classes=num_classes,
+        classes=1,
     )
-    config.num_channels = 1  # Изменение на одноканальные изображения
-    config.num_labels = 2  # Изменение на два класса
 
-    # Создание новой модели с этой конфигурацией
+    # # segformer
+    # config = SegformerConfig.from_pretrained(
+    #     "nvidia/segformer-b0-finetuned-ade-512-512",
+    #     num_channels=1,
+    #     num_labels=2,
+    #     # ignore_mismatched_sizes=True, можно попробовать это сделать
+    # )
+    # # config.num_channels = 1  # Изменение на одноканальные изображения
+    # # config.num_labels = 2  # Изменение на два класса
+    #
+    # # Создание новой модели с этой конфигурацией
     # model = SegformerForSemanticSegmentation(config)
+    #
+    # class SegformerForSemanticSegmentation(nn.Module):
+    #     def __init__(self, model, output_size=(1024, 1024)):
+    #         super(SegformerForSemanticSegmentation, self).__init__()
+    #         self.model = model
+    #         self.output_size = output_size
+    #
+    #     def forward(self, x):
+    #         # print("x.shape", x.shape)
+    #         # Преобразование одноканального изображения в трехканальное
+    #         # x = x.repeat(1, 3, 1, 1)
+    #         outputs = self.model(pixel_values=x)
+    #
+    #         # print("Type of outputs:", type(outputs))
+    #         # print("Keys in outputs:", outputs.keys())
+    #         # print("outputs.logits shape", outputs.logits.shape)
+    #
+    #         logits = outputs.logits
+    #         # print("logits shape", logits.shape)
+    #         logits = F.interpolate(
+    #             logits, size=self.output_size, mode="bilinear", align_corners=False
+    #         )
+    #         # print("logits shape after interpolation", logits.shape)
+    #
+    #         return logits
+    #
+    # model = SegformerForSemanticSegmentation(model).to(device)
+    #
+    # print("model", model)
 
-    # пробую florence-2
-    image_processor = AutoImageProcessor.from_pretrained("microsoft/florence-2")
-    model = AutoModelForImageSegmentation.from_pretrained("microsoft/florence-2")
+    # пробую florence-2, пишет что cuda должна быть версии 11.6 и выше, у нас 11.5
+    # model_id = 'microsoft/Florence-2-large'
+    # model = AutoModelForCausalLM.from_pretrained(model_id, trust_remote_code=True)
+    # processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
 
-    # Пример настройки модели для одноканальных изображений
-    class FlorenceSegmentationModel(nn.Module):
-        def __init__(self, model):
-            super(FlorenceSegmentationModel, self).__init__()
-            self.model = model
+    # # Пример настройки модели для одноканальных изображений
+    # class FlorenceSegmentationModel(nn.Module):
+    #     def __init__(self, model):
+    #         super(FlorenceSegmentationModel, self).__init__()
+    #         self.model = model
 
-        def forward(self, x):
-            # Преобразование одноканального изображения в трехканальное
-            x = x.repeat(1, 3, 1, 1)
-            outputs = self.model(pixel_values=x)
+    #     def forward(self, x):
+    #         # Преобразование одноканального изображения в трехканальное
+    #         x = x.repeat(1, 3, 1, 1)
+    #         outputs = self.model(pixel_values=x)
 
-            print("Type of outputs:", type(outputs))
-            print("Keys in outputs:", outputs.keys())
-            print("outputs.logits shape", outputs.logits.shape)
-            return outputs.logits
+    #         print("Type of outputs:", type(outputs))
+    #         print("Keys in outputs:", outputs.keys())
+    #         print("outputs.logits shape", outputs.logits.shape)
+    #         return outputs.logits
 
-    model = FlorenceSegmentationModel(model).to(device)
+    # model = FlorenceSegmentationModel(model).to(device)
 
     learning_rate = 3e-4
     num_epochs = 120
@@ -685,10 +755,10 @@ if __name__ == "__main__":
     optimizer = Adam(model.parameters(), lr=learning_rate)
     lr_sched = None
 
-    use_class_weight = True
-    use_pixel_weight = True
-    use_pixel_opt = True
-    power = "2.10_sinusite_weak"
+    use_class_weight = False
+    use_pixel_weight = False
+    use_pixel_opt = False
+    power = "2.14_sinusite_weak"
 
     exp_setup = ExperimentSetup(
         train_loader, total_train, pixel_total_train, batch_size, num_classes
@@ -717,6 +787,9 @@ if __name__ == "__main__":
         all_class_weights=all_class_weights,
         alpha=pixel_all_class_weights,
         use_opt_pixel_weight=use_pixel_opt,
+        num_cyclic_steps=0,
+        max_n=3,
+        max_k=3,
         use_augmentation=False,
     )
 
