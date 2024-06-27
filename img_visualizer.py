@@ -378,3 +378,112 @@ class ImageVisualizer:
                 )
 
             self.image_counter += 1
+
+    
+    def visualize_diffusion(self, images, initial_noise, class_names_dict, colors, num_iterations=10):
+        images = images.detach().cpu().numpy()
+        initial_noise = initial_noise.detach().cpu().numpy()
+        print("initial_noise shape", initial_noise.shape)
+
+        for i in range(len(images)):
+            image = images[i][0]#.cpu().numpy()
+            image = (image * 255).astype(np.uint8)
+            image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+
+            combined_images = []
+            current_noise = initial_noise[i]
+            print("current_noise shaep", current_noise.shape)
+
+            for iteration in range(num_iterations):
+                prob_mask = current_noise[0] ##############
+                thresholded_mask = (prob_mask * 255).astype(np.uint8)
+                heatmap = cv2.applyColorMap(thresholded_mask, cv2.COLORMAP_JET)
+
+                class_name = f"Iteration {iteration + 1}"
+                cv2.putText(
+                    heatmap,
+                    class_name,
+                    (10, 30),
+                    cv2.FONT_HERSHEY_COMPLEX,
+                    1,
+                    (255, 255, 255),
+                    2,
+                    cv2.LINE_AA,
+                )
+
+                combined_images.append(heatmap)
+
+                contours_image = image.copy()
+                cv2.putText(
+                    contours_image,
+                    class_name,
+                    (10, 30),
+                    cv2.FONT_HERSHEY_COMPLEX,
+                    1,
+                    (0, 0, 0),
+                    2,
+                    cv2.LINE_AA,
+                )
+                contours, _ = cv2.findContours(
+                    thresholded_mask,
+                    cv2.RETR_TREE,
+                    cv2.CHAIN_APPROX_SIMPLE,
+                )
+
+                for contour in contours:
+                    area = cv2.contourArea(contour)
+                    if area > 100:
+                        mask_contour = np.zeros_like(prob_mask)
+                        cv2.drawContours(
+                            mask_contour, [contour], -1, 1, thickness=cv2.FILLED
+                        )
+                        sum_probabilities = np.sum(prob_mask * mask_contour)
+                        avg_probability = sum_probabilities / area
+
+                        cv2.drawContours(contours_image, [contour], -1, (255, 0, 0), 1)
+                        text = f"{avg_probability:.4f}"
+                        text_size = cv2.getTextSize(
+                            text, cv2.FONT_HERSHEY_COMPLEX, 0.5, 1
+                        )[0]
+                        text_x = contour[0][0][0]
+                        text_y = contour[0][0][1]
+
+                        if text_x + text_size[0] > image.shape[1]:
+                            text_x = image.shape[1] - text_size[0]
+                        if text_y - text_size[1] < 0:
+                            text_y = text_size[1]
+
+                        cv2.putText(
+                            contours_image,
+                            text,
+                            (text_x, text_y),
+                            cv2.FONT_HERSHEY_COMPLEX,
+                            0.5,
+                            (0, 0, 0),
+                            1,
+                            cv2.LINE_AA,
+                        )
+
+                combined_images.append(contours_image)
+
+            num_images = len(combined_images)
+            grid_size = int(np.ceil(np.sqrt(num_images)))
+            grid_image = np.zeros(
+                (grid_size * image.shape[0], grid_size * image.shape[1], 3),
+                dtype=np.uint8,
+            )
+
+            for idx, img in enumerate(combined_images):
+                row = idx // grid_size
+                col = idx % grid_size
+                grid_image[
+                    row * image.shape[0] : (row + 1) * image.shape[0],
+                    col * image.shape[1] : (col + 1) * image.shape[1],
+                    :,
+                ] = img
+
+            cv2.imwrite(
+                f"{self.output_path}/image_{self.image_counter}.jpg", grid_image
+            )
+
+            self.image_counter += 1

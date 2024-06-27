@@ -90,319 +90,398 @@ def get_all_files(directory):
         for file in files:
             file_path = os.path.join(root, file)
             all_files.append(file_path)
-
     return all_files
 
 
 def get_slice_number(file):
+    # /mnt/netstorage/pathomorphology/cropped/кишечник_19.04.2024/256/train/113366/raw_24_data_кишечник_19.04.2024_113366_level_0_112.hdf5
+
     # j small_ainur/validate/home_ainur-karimov_data_raw_04.07.22_Размеченные_22.2.4739_level_0_78.hdf5
     # j small_ainur/validate/home_ainur-karimov_data_raw_29.01.23_Датасеты биопсии C16_22.1.2205-1_22.1.2205-1_level_0_66.hdf5#
 
     # вот так попробую чтобы было 04.07.22_Размеченные_22.2.4739
     parts = file.split("/")
     slice = parts[-1].split("_")
-    first_number = "_".join(slice[-3:])  # было так для желудка 
-    # first_number = slice[4] # щас так 
+    first_number = "_".join(slice[-3:])  # было так для желудка
+    # first_number = slice[4] # щас так
     slice_number = first_number.split(".")[0]
 
+    # print(file, "file") # '/mnt/netstorage/pathomorphology/cropped/кишечник_19.04.2024/256/validate/46236/24_data_кишечник_19.04.2024_TA_46236_level_0_559.hdf5'
+    # вторая часть кишков
+    # first_number = slice[-4]
     return first_number, slice_number
-  
-  
+
+
+# Функция для объединения изображений из папок train и val
+def collect_files(train_dir, val_dir):
+    train_files = get_all_files(train_dir)
+    val_files = get_all_files(val_dir)
+    return train_files + val_files
+
+
+def load_existing_data(json_path):
+    if os.path.exists(json_path):
+        with open(json_path, "r") as file:
+            return json.load(file)
+    return {
+        "info": {
+            "version": "",
+            "date_created": "",
+            "contributor": "",
+            "year": 2024,
+            "description": "",
+            "url": "",
+        },
+        "licenses": [{"url": "", "id": 0, "name": ""}],
+        "images": [],
+        "annotations": [],
+        "categories": [
+            {"id": 0, "name": "0", "supercategory": ""},
+            {"id": 1, "name": "GT", "supercategory": ""},
+            {"id": 2, "name": "NGC", "supercategory": ""},
+            {"id": 3, "name": "F", "supercategory": ""},
+            {"id": 4, "name": "LT", "supercategory": ""},
+            {"id": 5, "name": "SDL", "supercategory": ""},
+            {"id": 6, "name": "SDH", "supercategory": ""},
+            {"id": 7, "name": "HPM", "supercategory": ""},
+            {"id": 8, "name": "HPG", "supercategory": ""},
+            {"id": 9, "name": "APL", "supercategory": ""},
+            {"id": 10, "name": "APH", "supercategory": ""},
+            {"id": 11, "name": "TA", "supercategory": ""},
+            {"id": 12, "name": "VA", "supercategory": ""},
+            {"id": 13, "name": "INL", "supercategory": ""},
+            {"id": 14, "name": "INH", "supercategory": ""},
+            {"id": 15, "name": "ADCG1", "supercategory": ""},
+            {"id": 16, "name": "ADCG2", "supercategory": ""},
+            {"id": 17, "name": "ADCG3", "supercategory": ""},
+            {"id": 18, "name": "MAC", "supercategory": ""},
+            {"id": 19, "name": "SRC", "supercategory": ""},
+            {"id": 20, "name": "MC", "supercategory": ""},
+            {"id": 21, "name": "NDC", "supercategory": ""},
+            {"id": 22, "name": "NED", "supercategory": ""},
+        ],
+    }
+
+
+def save_data(json_path, data):
+    with open(json_path, "w") as file:
+        json.dump(data, file)
+
+
 if __name__ == "__main__":
     in_channels = 3
-    
-    # это для одного файлв
-    # path_to_hdf5 = "/home/imran/Документы/Innopolis/First_data_test/small_ainur/validate/home_ainur-karimov_data_raw_29.01.23_Датасеты биопсии C16_22.1.2205-1_22.1.2205-1_level_0_108.hdf5"
-    # h5_dict = h5py_read(path_to_hdf5, in_channels)
 
-    # image = h5_dict["image"]
-    # target = h5_dict["target"]
-    # mask = h5_dict["mask"][:, :, target]
-    # image_with_contours = draw_contours_on_image(image, mask, target)
-    # cv2.imshow("Contours", image_with_contours)
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
-
-    # вот тут для всех сделаю
-    
-    # тут убрал полный путь чтобы пути к файлам были короче
     # directory_path = "sct_project/sct_data/ainur_paths"
-    directory_path = "/mnt/datastore/Medical/stomach_paths"
+    # directory_path = "/mnt/datastore/Medical/stomach_paths"
+    # вторая часть кишков, их Айнур сразу по стеклам сделал я так понял
+    directory_path = "/mnt/netstorage/pathomorphology/cropped/кишечник_19.04.2024/256"
     subdirectories_list = get_direct_subdirectories(directory_path)
 
-    
-    with tqdm(total=len(subdirectories_list), desc="Making files") as pbar_dirs:      
-        # print("subdirectories_list", subdirectories_list) # тут test, train, validate
-        for i in subdirectories_list: # tqdm, desc="Processing subdirectories"):
-            # print("i", i) # sct_project/sct_data/ainur_paths/29.01.23_Датасеты биопсии C16_22.2.15881_22.2.15881
-            
-            # try: # добавил потому что файл какой то не читался, возможно скачивание не удачно оборвал
-                
-            coco_dataset = {
-                        "info": {
-                            "version": "",
-                            "date_created": "",
-                            "contributor": "",
-                            "year": 2024,  # было ""
-                            "description": "",
-                            "url": "",
-                        },
-                        "licenses": [{"url": "", "id": 0, "name": ""}],
-                        "images": [],
-                        "annotations": [],
-                        # "categories": []
-                        "categories": [
-                            
-                            # так что вроде теперь так для желудка
-                            { "id": 24, "name": "0", "supercategory": "" },
-                            { "id": 0, "name": "SE", "supercategory": "" },
-                            { "id": 1, "name": "GT", "supercategory": "" },
-                            { "id": 2, "name": "NG", "supercategory": "" },
-                            { "id": 3, "name": "F", "supercategory": "" },
-                            { "id": 4, "name": "IM", "supercategory": "" },
-                            { "id": 5, "name": "LT", "supercategory": "" },
-                            { "id": 6, "name": "GINL", "supercategory": "" },
-                            { "id": 7, "name": "GINH", "supercategory": "" },
-                            { "id": 8, "name": "TACG1", "supercategory": "" },
-                            { "id": 9, "name": "TACG2", "supercategory": "" },
-                            { "id": 10, "name": "TACG3", "supercategory": "" },
-                            { "id": 11, "name": "PACG1", "supercategory": "" },
-                            { "id": 12, "name": "PACG2", "supercategory": "" },
-                            { "id": 13, "name": "MPAC", "supercategory": "" },
-                            { "id": 14, "name": "PCC", "supercategory": "" },
-                            { "id": 15, "name": "PCC-NOS", "supercategory": "" },
-                            { "id": 16, "name": "MAC1", "supercategory": "" },
-                            { "id": 17, "name": "MAC2", "supercategory": "" },
-                            { "id": 18, "name": "ACLS", "supercategory": "" },
-                            { "id": 19, "name": "HAC", "supercategory": "" },
-                            { "id": 20, "name": "ACFG", "supercategory": "" },
-                            { "id": 21, "name": "SCC", "supercategory": "" },
-                            { "id": 22, "name": "NDC", "supercategory": "" },
-                            { "id": 23, "name": "NED", "supercategory": "" }
+    #     for i in subdirectories_list: # tqdm, desc="Processing subdirectories"):
+    #         print("i", i) # sct_project/sct_data/ainur_paths/29.01.23_Датасеты биопсии C16_22.2.15881_22.2.15881
 
-                            # вот так было для желудка но потом выяснилось что надо сделать перестановку вниз на один
-                            # # это старые для желудка
-                            # {
-                            #     "id": 0,
-                            #     "name": "0",  
-                            #     "supercategory": "",
-                            # }
-                            # {"id": 1, "name": "SE", "supercategory": ""},
-                            # {"id": 2, "name": "GT", "supercategory": ""},
-                            # {"id": 3, "name": "NG", "supercategory": ""},
-                            # {"id": 4, "name": "F", "supercategory": ""},
-                            # {"id": 5, "name": "IM", "supercategory": ""},
-                            
-                            # {"id": 6, "name": "LT", "supercategory": ""},
-                            # {"id": 7, "name": "GINL", "supercategory": ""},
-                            # {"id": 8, "name": "GINH", "supercategory": ""},
-                            # {"id": 9, "name": "TACG1", "supercategory": ""},
-                            # {"id": 10, "name": "TACG2", "supercategory": ""},
-                            
-                            # {"id": 11, "name": "TACG3", "supercategory": ""},
-                            # {"id": 12, "name": "PACG1", "supercategory": ""},
-                            # {"id": 13, "name": "PACG2", "supercategory": ""},
-                            # {"id": 14, "name": "MPAC", "supercategory": ""},
-                            # {"id": 15, "name": "PCC", "supercategory": ""},
-                            
-                            # {"id": 16, "name": "PCC-NOS", "supercategory": ""},
-                            # {"id": 17, "name": "MAC1", "supercategory": ""},
-                            # {"id": 18, "name": "MAC2", "supercategory": ""},
-                            # {"id": 19, "name": "ACLS", "supercategory": ""},
-                            # {"id": 20, "name": "HAC", "supercategory": ""},
-                            
-                            # {"id": 21, "name": "ACFG", "supercategory": ""},
-                            # {"id": 22, "name": "SCC", "supercategory": ""},
-                            # {"id": 23, "name": "NDC", "supercategory": ""},
-                            # {"id": 24, "name": "NED", "supercategory": ""}
-                            
-                            
-                            # это новые для кишки
-                            
-                            # возможно надо нулевой добавить для пустышек
-                            # {"id": 1, "name": "GT", "supercategory": ""},
-                            # {"id": 2, "name": "NGC", "supercategory": ""},
-                            # {"id": 3, "name": "F", "supercategory": ""},
-                            # {"id": 4, "name": "LT", "supercategory": ""},
-                            # {"id": 5, "name": "SDL", "supercategory": ""},
-                            
-                            # {"id": 6, "name": "SDH", "supercategory": ""},
-                            # {"id": 7, "name": "HPM", "supercategory": ""},
-                            # {"id": 8, "name": "HPG", "supercategory": ""},
-                            # {"id": 9, "name": "APL", "supercategory": ""},
-                            # {"id": 10, "name": "APH", "supercategory": ""},
-                            
-                            # {"id": 11, "name": "TA", "supercategory": ""},
-                            # {"id": 12, "name": "VA", "supercategory": ""},
-                            # {"id": 13, "name": "INL", "supercategory": ""},
-                            # {"id": 14, "name": "INH", "supercategory": ""},
-                            # {"id": 15, "name": "ADCG1", "supercategory": ""},
-                            
-                            # {"id": 16, "name": "ADCG2", "supercategory": ""},
-                            # {"id": 17, "name": "ADCG3", "supercategory": ""},
-                            # {"id": 18, "name": "MAC", "supercategory": ""},
-                            # {"id": 19, "name": "SRC", "supercategory": ""},
-                            # {"id": 20, "name": "MC", "supercategory": ""},
-                            
-                            # {"id": 21, "name": "NDC", "supercategory": ""},
-                            # {"id": 22, "name": "NED", "supercategory": ""}
-                            
-                        ] # была запятая 
-                    }
-            
-            all_files = get_all_files(i)
-            with tqdm(total=len(all_files), desc="Making files") as pbar:
-                for j in all_files: # tqdm, desc=f"Processing files in {i}"):
-                    # print("j", j)
-                    # пока сделаю чтобы у каждой картинки был свой json чтобы Сане отправить
-                    
+    #         subsubdirs = get_direct_subdirectories(i)
+    #             # print("subsubdirs", subsubdirs)
+    #         with tqdm(total=len(subsubdirs), desc="Making files") as pbar_dirs:
+    #             for subsub in subsubdirs:
 
+    #                 coco_dataset = {
+    #                             "info": {
+    #                                 "version": "",
+    #                                 "date_created": "",
+    #                                 "contributor": "",
+    #                                 "year": 2024,  # было ""
+    #                                 "description": "",
+    #                                 "url": "",
+    #                             },
+    #                             "licenses": [{"url": "", "id": 0, "name": ""}],
+    #                             "images": [],
+    #                             "annotations": [],
+    #                             # "categories": []
+    #                             "categories": [
 
+    #                                 # так что вроде теперь так для желудка
+    #                                 # { "id": 24, "name": "0", "supercategory": "" },
+    #                                 # { "id": 0, "name": "SE", "supercategory": "" },
+    #                                 # { "id": 1, "name": "GT", "supercategory": "" },
+    #                                 # { "id": 2, "name": "NG", "supercategory": "" },
+    #                                 # { "id": 3, "name": "F", "supercategory": "" },
+    #                                 # { "id": 4, "name": "IM", "supercategory": "" },
+    #                                 # { "id": 5, "name": "LT", "supercategory": "" },
+    #                                 # { "id": 6, "name": "GINL", "supercategory": "" },
+    #                                 # { "id": 7, "name": "GINH", "supercategory": "" },
+    #                                 # { "id": 8, "name": "TACG1", "supercategory": "" },
+    #                                 # { "id": 9, "name": "TACG2", "supercategory": "" },
+    #                                 # { "id": 10, "name": "TACG3", "supercategory": "" },
+    #                                 # { "id": 11, "name": "PACG1", "supercategory": "" },
+    #                                 # { "id": 12, "name": "PACG2", "supercategory": "" },
+    #                                 # { "id": 13, "name": "MPAC", "supercategory": "" },
+    #                                 # { "id": 14, "name": "PCC", "supercategory": "" },
+    #                                 # { "id": 15, "name": "PCC-NOS", "supercategory": "" },
+    #                                 # { "id": 16, "name": "MAC1", "supercategory": "" },
+    #                                 # { "id": 17, "name": "MAC2", "supercategory": "" },
+    #                                 # { "id": 18, "name": "ACLS", "supercategory": "" },
+    #                                 # { "id": 19, "name": "HAC", "supercategory": "" },
+    #                                 # { "id": 20, "name": "ACFG", "supercategory": "" },
+    #                                 # { "id": 21, "name": "SCC", "supercategory": "" },
+    #                                 # { "id": 22, "name": "NDC", "supercategory": "" },
+    #                                 # { "id": 23, "name": "NED", "supercategory": "" }
+
+    #                                 # вот так было для желудка но потом выяснилось что надо сделать перестановку вниз на один
+    #                                 # # это старые для желудка
+    #                                 # {
+    #                                 #     "id": 0,
+    #                                 #     "name": "0",
+    #                                 #     "supercategory": "",
+    #                                 # }
+    #                                 # {"id": 1, "name": "SE", "supercategory": ""},
+    #                                 # {"id": 2, "name": "GT", "supercategory": ""},
+    #                                 # {"id": 3, "name": "NG", "supercategory": ""},
+    #                                 # {"id": 4, "name": "F", "supercategory": ""},
+    #                                 # {"id": 5, "name": "IM", "supercategory": ""},
+
+    #                                 # {"id": 6, "name": "LT", "supercategory": ""},
+    #                                 # {"id": 7, "name": "GINL", "supercategory": ""},
+    #                                 # {"id": 8, "name": "GINH", "supercategory": ""},
+    #                                 # {"id": 9, "name": "TACG1", "supercategory": ""},
+    #                                 # {"id": 10, "name": "TACG2", "supercategory": ""},
+
+    #                                 # {"id": 11, "name": "TACG3", "supercategory": ""},
+    #                                 # {"id": 12, "name": "PACG1", "supercategory": ""},
+    #                                 # {"id": 13, "name": "PACG2", "supercategory": ""},
+    #                                 # {"id": 14, "name": "MPAC", "supercategory": ""},
+    #                                 # {"id": 15, "name": "PCC", "supercategory": ""},
+
+    #                                 # {"id": 16, "name": "PCC-NOS", "supercategory": ""},
+    #                                 # {"id": 17, "name": "MAC1", "supercategory": ""},
+    #                                 # {"id": 18, "name": "MAC2", "supercategory": ""},
+    #                                 # {"id": 19, "name": "ACLS", "supercategory": ""},
+    #                                 # {"id": 20, "name": "HAC", "supercategory": ""},
+
+    #                                 # {"id": 21, "name": "ACFG", "supercategory": ""},
+    #                                 # {"id": 22, "name": "SCC", "supercategory": ""},
+    #                                 # {"id": 23, "name": "NDC", "supercategory": ""},
+    #                                 # {"id": 24, "name": "NED", "supercategory": ""}
+
+    #                                 # это новые для кишки
+
+    #                                 # возможно надо нулевой добавить для пустышек
+    #                                 {
+    #                                     "id": 0,
+    #                                     "name": "0",
+    #                                     "supercategory": "",
+    #                                 },
+    #                                 {"id": 1, "name": "GT", "supercategory": ""},
+    #                                 {"id": 2, "name": "NGC", "supercategory": ""},
+    #                                 {"id": 3, "name": "F", "supercategory": ""},
+    #                                 {"id": 4, "name": "LT", "supercategory": ""},
+    #                                 {"id": 5, "name": "SDL", "supercategory": ""},
+
+    #                                 {"id": 6, "name": "SDH", "supercategory": ""},
+    #                                 {"id": 7, "name": "HPM", "supercategory": ""},
+    #                                 {"id": 8, "name": "HPG", "supercategory": ""},
+    #                                 {"id": 9, "name": "APL", "supercategory": ""},
+    #                                 {"id": 10, "name": "APH", "supercategory": ""},
+
+    #                                 {"id": 11, "name": "TA", "supercategory": ""},
+    #                                 {"id": 12, "name": "VA", "supercategory": ""},
+    #                                 {"id": 13, "name": "INL", "supercategory": ""},
+    #                                 {"id": 14, "name": "INH", "supercategory": ""},
+    #                                 {"id": 15, "name": "ADCG1", "supercategory": ""},
+
+    #                                 {"id": 16, "name": "ADCG2", "supercategory": ""},
+    #                                 {"id": 17, "name": "ADCG3", "supercategory": ""},
+    #                                 {"id": 18, "name": "MAC", "supercategory": ""},
+    #                                 {"id": 19, "name": "SRC", "supercategory": ""},
+    #                                 {"id": 20, "name": "MC", "supercategory": ""},
+
+    #                                 {"id": 21, "name": "NDC", "supercategory": ""},
+    #                                 {"id": 22, "name": "NED", "supercategory": ""}
+
+    #                             ]
+    #                         }
+    #                 print("subsub", subsub)
+    #                 all_files = get_all_files(subsub)
+    #                 # print("len all_files", len(all_files))
+    #                 # with tqdm(total=len(all_files), desc="Making files j") as pbar:
+    #                 for j in all_files: # tqdm, desc=f"Processing files in {i}"):
+    #                     # print("j", j)
+    #                     # j /mnt/netstorage/pathomorphology/cropped/кишечник_19.04.2024/256/validate/113366/raw_24_data_кишечник_19.04.2024_113366_level_0_20.hdf5
+    #                     # пока сделаю чтобы у каждой картинки был свой json чтобы Сане отправить
+
+    #                     path_to_hdf5 = j
+    #                     h5_dict = h5py_read(path_to_hdf5, in_channels)
+
+    #                     h5_image = h5_dict["image"]
+    #                     target = h5_dict["target"]
+    #                     mask = h5_dict["mask"][:, :, target]
+    #                     # print("h5_dict[mask]", h5_dict["mask"].shape)
+
+    #                     first_number, slice_number = get_slice_number(j)
+    #                     # print("first_number", first_number) # first_number level_0_180.hdf5
+    #                     # print("slice_number", slice_number) # slice_number level_0_180
+    #                     image_id = slice_number
+
+    #                     # было так
+    #                     # print("subsub", subsub)
+    #                     papka = subsub.split("/")[-1]
+    #                     # print("papka", papka) # 29.01.23_Датасеты биопсии C16_22.2.15881_22.2.15881
+
+    #     ##########################
+    #                     # images_path = f"/home/imran-nasyrov/sct_project/sct_data/CONVERT_AINUR/{papka}/images"
+    #                     # кишки вторая часть
+    #                     images_path = f"/mnt/netstorage/Medicine/Medical/test_stomach_json_part_2/{papka}/images"
+    #                     # images_path = f"/mnt/datastore/Medical/stomach_json/{papka}/images"
+    #                     if not os.path.exists(images_path):
+    #                         os.makedirs(images_path)
+
+    #                     result = cv2.normalize(h5_image, dst=None, alpha=0, beta=255,norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+    #                     pixel_array = cv2.cvtColor(result, cv2.COLOR_RGB2BGR)
+    #                     out_convert_image = f"{images_path}/{image_id}.jpg"
+    #                     # print("out_convert_image", out_convert_image) # /home/imran-nasyrov/sct_project/sct_data/CONVERT_AINUR/29.01.23_Датасеты биопсии C16_200170-1-1_200170-1-1/images/level_0_1356.jpg
+
+    #                     cv2.imwrite(out_convert_image, pixel_array)
+
+    #                     image_name = out_convert_image.split("/")[-1]
+    #                     # print("image_name", image_name)
+
+    #                     image, annotation = create_coco_annotation_from_mask(mask, target, image_name) # вместо image_id мне надо передавать имя файла jpg поэтому создам его выше
+    #                     # print("annotation here", annotation)
+    #                     # print("annotation here", len(annotation["segmentation"])) # тут нормально все все области хранятся
+    #                     total_length = sum(len(sublist) for sublist in annotation["segmentation"])
+    #                     # print("total_length here", total_length)
+    #                     if annotation["segmentation"] != [[0, 0, 0, 0, 0, 0]]:
+    #                         # if len(coco_dataset["annotations"])
+    #                         coco_dataset["annotations"].append(annotation)
+    #                     coco_dataset["images"].append(image)
+
+    #                     # folder_path = f"/mnt/datastore/Medical/stomach_json/{papka}/annotations"
+    #                     # кишки вторая часть
+    #                     folder_path = f"/mnt/netstorage/Medicine/Medical/test_stomach_json_part_2/{papka}/annotations"
+
+    #                     # images_path = f"/home/imran-nasyrov/sct_project/sct_data/CONVERT_AINUR/{id_number}/images"
+
+    #                     if not os.path.exists(folder_path):
+    #                         os.makedirs(folder_path)
+
+    # ################################
+    #                     output_file = f"{folder_path}/instances_default.json"
+
+    #                     with open(output_file, "w") as file:
+    #                         json.dump(coco_dataset, file)
+    #                     # except:
+    #                     #     print("No")
+
+    #                     # pbar.update(1)
+
+    #                     pbar_dirs.update(1)
+
+    #             # except:
+    #             #     pass
+    #########################################
+    # j small_ainur/validate/home_ainur-karimov_data_raw_04.07.22_Размеченные_22.2.4739_level_0_78.hdf5
+    # j small_ainur/validate/home_ainur-karimov_data_raw_29.01.23_Датасеты биопсии C16_22.1.2205-1_22.1.2205-1_level_0_66.hdf5#
+
+    for i in subdirectories_list:
+        if os.path.basename(i) in ["train", "validate"]:
+            subsubdirs = get_direct_subdirectories(i)
+            for subsub in tqdm(subsubdirs):
+                # if "110363" in subsub:
+                papka = os.path.basename(subsub)
+                print("papka", papka)
+                images_path = f"/mnt/netstorage/Medicine/Medical/stomach_json_part_2/{papka}/images"
+                folder_path = f"/mnt/netstorage/Medicine/Medical/stomach_json_part_2/{papka}/annotations"
+                if not os.path.exists(images_path):
+                    os.makedirs(images_path)
+                if not os.path.exists(folder_path):
+                    os.makedirs(folder_path)
+
+                all_files = get_all_files(subsub)
+
+                # coco_dataset = {
+                #     "info": {
+                #         "version": "",
+                #         "date_created": "",
+                #         "contributor": "",
+                #         "year": 2024,
+                #         "description": "",
+                #         "url": "",
+                #     },
+                #     "licenses": [{"url": "", "id": 0, "name": ""}],
+                #     "images": [],
+                #     "annotations": [],
+                #     "categories": [
+                #         {"id": 0, "name": "0", "supercategory": ""},
+
+                #         {"id": 1, "name": "GT", "supercategory": ""},
+                #         {"id": 2, "name": "NGC", "supercategory": ""},
+                #         {"id": 3, "name": "F", "supercategory": ""},
+                #         {"id": 4, "name": "LT", "supercategory": ""},
+                #         {"id": 5, "name": "SDL", "supercategory": ""},
+
+                #         {"id": 6, "name": "SDH", "supercategory": ""},
+                #         {"id": 7, "name": "HPM", "supercategory": ""},
+                #         {"id": 8, "name": "HPG", "supercategory": ""},
+                #         {"id": 9, "name": "APL", "supercategory": ""},
+                #         {"id": 10, "name": "APH", "supercategory": ""},
+
+                #         {"id": 11, "name": "TA", "supercategory": ""},
+                #         {"id": 12, "name": "VA", "supercategory": ""},
+                #         {"id": 13, "name": "INL", "supercategory": ""},
+                #         {"id": 14, "name": "INH", "supercategory": ""},
+                #         {"id": 15, "name": "ADCG1", "supercategory": ""},
+
+                #         {"id": 16, "name": "ADCG2", "supercategory": ""},
+                #         {"id": 17, "name": "ADCG3", "supercategory": ""},
+                #         {"id": 18, "name": "MAC", "supercategory": ""},
+                #         {"id": 19, "name": "SRC", "supercategory": ""},
+                #         {"id": 20, "name": "MC", "supercategory": ""},
+
+                #         {"id": 21, "name": "NDC", "supercategory": ""},
+                #         {"id": 22, "name": "NED", "supercategory": ""}
+                #     ]
+                # }
+
+                output_file = f"{folder_path}/instances_default.json"
+                coco_dataset = load_existing_data(output_file)
+
+                for j in tqdm(all_files, desc=f"Processing files in {subsub}"):
                     path_to_hdf5 = j
                     h5_dict = h5py_read(path_to_hdf5, in_channels)
-
                     h5_image = h5_dict["image"]
                     target = h5_dict["target"]
                     mask = h5_dict["mask"][:, :, target]
-                    # image_with_contours = draw_contours_on_image(image, mask, target) вот по сути картинка готовая но нужно через coco сделать
-                    # пока так сделаю для простоты
-                    # print("image", image)
-                    # print("h5_image shape", h5_image.shape)
-                    # print("mask", mask)
-                    # print("target", target) # 14
-                    # print("image_id", image_id) # small_ainur/validate/home_ainur-karimov_data_raw_04.07.22_Размеченные_22.2.4739_level_0_67.hdf5
-                    
+
                     first_number, slice_number = get_slice_number(j)
                     # print("first_number", first_number) # first_number level_0_180.hdf5
                     # print("slice_number", slice_number) # slice_number level_0_180
                     image_id = slice_number
-                    
-                    # parts = image_id.split('_')
-                    # id_number = parts[-1]
-                    # id_number = int(id_number)
-                    # print("id_number", id_number) # 180
-                    
-                    # это фотки сохранит
 
-                    papka = i.split("/")[-1]
-                    # print("papka", papka) # 29.01.23_Датасеты биопсии C16_22.2.15881_22.2.15881 
-    
-                    # images_path = f"/home/imran-nasyrov/sct_project/sct_data/CONVERT_AINUR/{papka}/images"
-                    images_path = f"/mnt/datastore/Medical/stomach_json/{papka}/images"
-                    if not os.path.exists(images_path):
-                        os.makedirs(images_path)
-                    
-                    result = cv2.normalize(h5_image, dst=None, alpha=0, beta=255,norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+                    result = cv2.normalize(
+                        h5_image,
+                        dst=None,
+                        alpha=0,
+                        beta=255,
+                        norm_type=cv2.NORM_MINMAX,
+                        dtype=cv2.CV_8U,
+                    )
                     pixel_array = cv2.cvtColor(result, cv2.COLOR_RGB2BGR)
                     out_convert_image = f"{images_path}/{image_id}.jpg"
-                    # print("out_convert_image", out_convert_image) # /home/imran-nasyrov/sct_project/sct_data/CONVERT_AINUR/29.01.23_Датасеты биопсии C16_200170-1-1_200170-1-1/images/level_0_1356.jpg
-                    
                     cv2.imwrite(out_convert_image, pixel_array)
-                        
-                    image_name = out_convert_image.split("/")[-1]
-                    # print("image_name", image_name)
-                    
-                    image, annotation = create_coco_annotation_from_mask(mask, target, image_name) # вместо image_id мне надо передавать имя файла jpg поэтому создам его выше
-                    # print("annotation here", annotation)
-                    # print("annotation here", len(annotation["segmentation"])) # тут нормально все все области хранятся
-                    total_length = sum(len(sublist) for sublist in annotation["segmentation"])
-                    # print("total_length here", total_length)
+
+                    image_name = os.path.basename(out_convert_image)
+                    image, annotation = create_coco_annotation_from_mask(
+                        mask, target, image_name
+                    )
+
                     if annotation["segmentation"] != [[0, 0, 0, 0, 0, 0]]:
-                        # if len(coco_dataset["annotations"])
-                        coco_dataset["annotations"].append(annotation) 
-                    coco_dataset["images"].append(image) 
-                    
-                    # для неразмеченных тоже json создаются но с пустым annotations = []
-                    
-                    
-                    # total_length = sum(len(sublist) for sublist in annotation["segmentation"])
-                    # print("total_length here", total_length)
-                    
-                    # тут короче опять есть неразмеченные картинки
-                    # Это сохранение картинок моим кодом
-                    # try:
-                    #     # print("coco_dataset[annotations]", coco_dataset["annotations"]) # 1
-                    #     # print("coco_dataset[annotations][0]", coco_dataset["annotations"][0])
-                    #     image_from_polygon = draw_image_from_polygon(coco_dataset["annotations"][0]["segmentation"][0], mask.shape)
-                    # except:
-                    #     print("no")
-                    # my_result = cv2.normalize(h5_image, dst=None, alpha=0, beta=255,norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-                    # my_pixel_array = cv2.cvtColor(my_result, cv2.COLOR_RGB2BGR)
-                    
-                    # image_with_contours = draw_contours_on_image(my_pixel_array, image_from_polygon, target) # тут надо указывать именно диком файл ##########
-                    
-            
-                
+                        coco_dataset["annotations"].append(annotation)
+                    coco_dataset["images"].append(image)
 
-                    # Пути к папке, которую нужно создать
-                    
-                    # folder_path = f"/home/imran-nasyrov/sct_project/sct_data/output_image_ainur/{target}"
+                # output_file = f"{folder_path}/instances_default.json"
+                # with open(output_file, "w") as file:
+                #     json.dump(coco_dataset, file)
 
-                    # # Проверяем существование папки
-                    # if not os.path.exists(folder_path):
-                    #     # Создаем папку и всех промежуточных родительских папок, если их нет
-                    #     os.makedirs(folder_path)
-                    #     print(f"Папка {folder_path} успешно создана")
-                    # else:
-                    #     print(f"Папка {folder_path} уже существует")
-
-
-                    
-                    
-                    # my_folder_path = f"/home/imran-nasyrov/sct_project/sct_data/my_output_image_ainur/{target}"
-                
-                    # if not os.path.exists(my_folder_path):
-                    #     os.makedirs(my_folder_path)
-                
-                    # my_result = cv2.normalize(image_with_contours, dst=None, alpha=0, beta=255,norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-                    # my_pixel_array = cv2.cvtColor(my_result, cv2.COLOR_RGB2BGR)
-                    # out_convert_image = f"{images_path}/{id_number}.jpg"
-                    
-                    # cv2.imwrite(f"{my_folder_path}/{id_number}.jpg", my_pixel_array)
-                    
-                    # папки с json создал, осталось картинки добавить
-                    # try:
-                    # folder_path = f"/home/imran-nasyrov/sct_project/sct_data/CONVERT_AINUR/{papka}/annotations"
-                    folder_path = f"/mnt/datastore/Medical/stomach_json/{papka}/annotations"
-                    
-                    
-                    # images_path = f"/home/imran-nasyrov/sct_project/sct_data/CONVERT_AINUR/{id_number}/images"
-                    
-                    if not os.path.exists(folder_path):
-                        os.makedirs(folder_path)
-                    
-                    # if not os.path.exists(images_path):
-                    #     os.makedirs(images_path)
-                        
-                    # это надо будет когда класс вызывать буду
-                    # all_out_files = get_all_files(f"/home/imran-nasyrov/sct_project/sct_data/CONVERT_AINUR/{id_number}")
-                    # print("all_out_files", all_out_files)
-                    # if len(all_out_files) < 20:
-                    # plt.imshow(h5_image)
-                    # plt.axis('off')  
-                    # plt.savefig(f"{images_path}/{id_number}.jpg", bbox_inches='tight', pad_inches=0)
-                    
-                    # result = cv2.normalize(h5_image, dst=None, alpha=0, beta=255,norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-                    # pixel_array = cv2.cvtColor(result, cv2.COLOR_RGB2BGR)
-
-                    # cv2.imwrite(f"{images_path}/{id_number}.jpg", pixel_array)
-#################################                       
-                    output_file = f"{folder_path}/instances_default.json"
-                    
-                    with open(output_file, "w") as file:
-                        json.dump(coco_dataset, file)  
-                    # except:
-                    #     print("No") 
-                    
-                    pbar.update(1)
-                    
-            pbar_dirs.update(1)  
-        
-        # except:
-        #     pass
-#########################################
-# j small_ainur/validate/home_ainur-karimov_data_raw_04.07.22_Размеченные_22.2.4739_level_0_78.hdf5
-# j small_ainur/validate/home_ainur-karimov_data_raw_29.01.23_Датасеты биопсии C16_22.1.2205-1_22.1.2205-1_level_0_66.hdf5#
-
+                save_data(output_file, coco_dataset)
 
     print("ok")

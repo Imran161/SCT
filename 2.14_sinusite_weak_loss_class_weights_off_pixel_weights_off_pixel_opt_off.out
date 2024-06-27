@@ -1,71 +1,0 @@
-subdir train /home/imran-nasyrov/sinusite_json_data/task_sinusite_data_29_11_23_2_st_sin_labeling
-loading annotations into memory...
-Done (t=0.19s)
-creating index...
-index created!
-subdir train /home/imran-nasyrov/sinusite_json_data/task_sinusite_v3_24082022-2023_09_12_23_34_51
-loading annotations into memory...
-Done (t=0.06s)
-creating index...
-index created!
-sct_coco._total_train [405. 397. 198.]
-subdir train /home/imran-nasyrov/sinusite_json_data/task_task_17_jule_23_pathology_anatomy_sinus_num3-2023_09_06_00_11_03
-loading annotations into memory...
-Done (t=0.02s)
-creating index...
-index created!
-sct_coco._total_train [172. 113.  34.]
-subdir train /home/imran-nasyrov/sinusite_json_data/task_sinusite_data_29_11_23_1_st_sin_labeling
-loading annotations into memory...
-Done (t=0.35s)
-creating index...
-index created!
-sct_coco._total_train [648. 385.  52.]
-subdir train /home/imran-nasyrov/sinusite_json_data/task_task_17_jule_23_pathology_anatomy_sinus_num1-2023_09_12_22_22_21
-loading annotations into memory...
-Done (t=0.02s)
-creating index...
-index created!
-sct_coco._total_train [172. 115.  33.]
-subdir train /home/imran-nasyrov/sinusite_json_data/task_sinusite_test_data-2023_09_08_09_55_43
-loading annotations into memory...
-Done (t=0.02s)
-creating index...
-index created!
-sct_coco._total_train [106.  56.   6.]
-subdir train /home/imran-nasyrov/sinusite_json_data/task_sinusite_data_29_11_23_3_st_sin_labeling
-loading annotations into memory...
-Done (t=0.21s)
-creating index...
-index created!
-sct_coco._total_train [528. 304.  43.]
-subdir train /home/imran-nasyrov/sinusite_json_data/task_task_17_jule_23_pathology_anatomy_sinus_num4-2023_09_05_23_00_35
-loading annotations into memory...
-Done (t=0.03s)
-creating index...
-index created!
-sct_coco._total_train [172. 127.  33.]
-subdir val /home/imran-nasyrov/sinusite_json_data/task_sinusite_v4_11012023-2023_01_20_06_31_49
-loading annotations into memory...
-Done (t=0.02s)
-creating index...
-index created!
-subdir val /home/imran-nasyrov/sinusite_json_data/task_task_17_jule_23_pathology_anatomy_sinus_num2-2023_09_12_22_50_06
-loading annotations into memory...
-Done (t=0.04s)
-creating index...
-index created!
-subdir val /home/imran-nasyrov/sinusite_json_data/task_task_27_jule_23_pathology_anatomy_sinus_num5_olddata-2023_08_30_00_59_39
-loading annotations into memory...
-Done (t=0.08s)
-creating index...
-index created!
-total_train [2818. 1827.  451.]
-len total_train 3
-list_of_name_out_classes ['фон', 'Снижение пневматизации околоносовых пазух', 'Горизонтальный уровень жидкость-воздух']
-pixel_TotalTrain [1.97160082e+09 3.85716520e+07 1.66486400e+06]
-len val_loader 130
-len train_loader 470
-cuda:1
-NVIDIA A100 80GB PCIe
-Epoch 1/120:   0%|          | 0/470 [00:00<?, ?batch/s]Epoch 1/120:   0%|          | 0/470 [00:04<?, ?batch/s, loss=0.223]Epoch 1/120:   0%|          | 1/470 [00:04<33:54,  4.34s/batch, loss=0.223]Epoch 1/120:   0%|          | 1/470 [00:05<33:54,  4.34s/batch, loss=0.174]Epoch 1/120:   0%|          | 2/470 [00:05<16:58,  2.18s/batch, loss=0.174]Epoch 1/120:   0%|          | 2/470 [00:05<16:58,  2.18s/batch, loss=0.202]Epoch 1/120:   1%|          | 3/470 [00:05<11:36,  1.49s/batch, loss=0.202]Epoch 1/120:   1%|          | 3/470 [00:06<11:36,  1.49s/batch, loss=0.226]Epoch 1/120:   1%|          | 4/470 [00:06<09:06,  1.17s/batch, loss=0.226]Epoch 1/120:   1%|          | 4/470 [00:07<09:06,  1.17s/batch, loss=0.214]Epoch 1/120:   1%|          | 5/470 [00:07<07:39,  1.01batch/s, loss=0.214]Epoch 1/120:   1%|          | 5/470 [00:07<07:39,  1.01batch/s, loss=0.221]Epoch 1/120:   1%|▏         | 6/470 [00:07<06:47,  1.14batch/s, loss=0.221]Epoch 1/120:   1%|▏         | 6/470 [00:08<06:47,  1.14batch/s, loss=0.226]Epoch 1/120:   1%|▏         | 7/470 [00:08<06:17,  1.23batch/s, loss=0.226]Epoch 1/120:   1%|▏         | 7/470 [00:09<06:17,  1.23batch/s, loss=0.218]Epoch 1/120:   2%|▏         | 8/470 [00:09<05:57,  1.29batch/s, loss=0.218]Epoch 1/120:   2%|▏         | 8/470 [00:09<05:57,  1.29batch/s, loss=0.217]Epoch 1/120:   2%|▏         | 9/470 [00:09<05:40,  1.35batch/s, loss=0.217]Epoch 1/120:   2%|▏         | 9/470 [00:10<05:40,  1.35batch/s, loss=0.213]Epoch 1/120:   2%|▏         | 10/470 [00:10<05:27,  1.41batch/s, loss=0.213]Epoch 1/120:   2%|▏         | 10/470 [00:11<05:27,  1.41batch/s, loss=0.213]Epoch 1/120:   2%|▏         | 11/470 [00:11<05:19,  1.44batch/s, loss=0.213]Epoch 1/120:   2%|▏         | 11/470 [00:11<05:19,  1.44batch/s, loss=0.204]Epoch 1/120:   3%|▎         | 12/470 [00:11<05:13,  1.46batch/s, loss=0.204]Epoch 1/120:   3%|▎         | 12/470 [00:12<05:13,  1.46batch/s, loss=0.202]Epoch 1/120:   3%|▎         | 13/470 [00:12<05:11,  1.47batch/s, loss=0.202]Epoch 1/120:   3%|▎         | 13/470 [00:13<05:11,  1.47batch/s, loss=0.203]Epoch 1/120:   3%|▎         | 14/470 [00:13<05:09,  1.47batch/s, loss=0.203]Epoch 1/120:   3%|▎         | 14/470 [00:13<05:09,  1.47batch/s, loss=0.202]Epoch 1/120:   3%|▎         | 15/470 [00:13<05:09,  1.47batch/s, loss=0.202]Epoch 1/120:   3%|▎         | 15/470 [00:14<05:09,  1.47batch/s, loss=0.2]  Epoch 1/120:   3%|▎         | 16/470 [00:14<05:07,  1.48batch/s, loss=0.2]Epoch 1/120:   3%|▎         | 16/470 [00:15<05:07,  1.48batch/s, loss=0.195]Epoch 1/120:   4%|▎         | 17/470 [00:15<05:04,  1.49batch/s, loss=0.195]Epoch 1/120:   4%|▎         | 17/470 [00:15<05:04,  1.49batch/s, loss=0.193]Epoch 1/120:   4%|▍         | 18/470 [00:15<05:00,  1.50batch/s, loss=0.193]Epoch 1/120:   4%|▍         | 18/470 [00:16<05:00,  1.50batch/s, loss=0.193]Epoch 1/120:   4%|▍         | 19/470 [00:16<05:02,  1.49batch/s, loss=0.193]Epoch 1/120:   4%|▍         | 19/470 [00:17<05:02,  1.49batch/s, loss=0.194]Epoch 1/120:   4%|▍         | 20/470 [00:17<05:03,  1.48batch/s, loss=0.194]Epoch 1/120:   4%|▍         | 20/470 [00:17<05:03,  1.48batch/s, loss=0.191]Epoch 1/120:   4%|▍         | 21/470 [00:17<04:59,  1.50batch/s, loss=0.191]Epoch 1/120:   4%|▍         | 21/470 [00:18<04:59,  1.50batch/s, loss=0.193]Epoch 1/120:   5%|▍         | 22/470 [00:18<04:56,  1.51batch/s, loss=0.193]Epoch 1/120:   5%|▍         | 22/470 [00:19<04:56,  1.51batch/s, loss=0.196]Epoch 1/120:   5%|▍         | 23/470 [00:19<04:58,  1.50batch/s, loss=0.196]Epoch 1/120:   5%|▍         | 23/470 [00:19<04:58,  1.50batch/s, loss=0.193]Epoch 1/120:   5%|▌         | 24/470 [00:19<04:58,  1.50batch/s, loss=0.193]Epoch 1/120:   5%|▌         | 24/470 [00:20<04:58,  1.50batch/s, loss=0.194]Epoch 1/120:   5%|▌         | 25/470 [00:20<04:55,  1.51batch/s, loss=0.194]Epoch 1/120:   5%|▌         | 25/470 [00:21<04:55,  1.51batch/s, loss=0.194]Epoch 1/120:   6%|▌         | 26/470 [00:21<04:57,  1.49batch/s, loss=0.194]Epoch 1/120:   6%|▌         | 26/470 [00:21<04:57,  1.49batch/s, loss=0.194]Epoch 1/120:   6%|▌         | 27/470 [00:21<04:55,  1.50batch/s, loss=0.194]Epoch 1/120:   6%|▌         | 27/470 [00:22<04:55,  1.50batch/s, loss=0.19] Epoch 1/120:   6%|▌         | 28/470 [00:22<04:53,  1.51batch/s, loss=0.19]Epoch 1/120:   6%|▌         | 28/470 [00:23<04:53,  1.51batch/s, loss=0.188]Epoch 1/120:   6%|▌         | 29/470 [00:23<04:53,  1.50batch/s, loss=0.188]Epoch 1/120:   6%|▌         | 29/470 [00:23<04:53,  1.50batch/s, loss=0.189]Epoch 1/120:   6%|▋         | 30/470 [00:23<04:58,  1.47batch/s, loss=0.189]Epoch 1/120:   6%|▋         | 30/470 [00:24<04:58,  1.47batch/s, loss=0.19] Epoch 1/120:   7%|▋         | 31/470 [00:24<04:56,  1.48batch/s, loss=0.19]Epoch 1/120:   7%|▋         | 31/470 [00:25<04:56,  1.48batch/s, loss=0.19]Epoch 1/120:   7%|▋         | 32/470 [00:25<04:56,  1.48batch/s, loss=0.19]Epoch 1/120:   7%|▋         | 32/470 [00:25<04:56,  1.48batch/s, loss=0.189]Epoch 1/120:   7%|▋         | 33/470 [00:25<04:52,  1.49batch/s, loss=0.189]Epoch 1/120:   7%|▋         | 33/470 [00:26<04:52,  1.49batch/s, loss=0.189]Epoch 1/120:   7%|▋         | 34/470 [00:26<04:52,  1.49batch/s, loss=0.189]Epoch 1/120:   7%|▋         | 34/470 [00:27<04:52,  1.49batch/s, loss=0.189]Epoch 1/120:   7%|▋         | 35/470 [00:27<04:53,  1.48batch/s, loss=0.189]Epoch 1/120:   7%|▋         | 35/470 [00:27<04:53,  1.48batch/s, loss=0.189]Epoch 1/120:   8%|▊         | 36/470 [00:27<04:55,  1.47batch/s, loss=0.189]Epoch 1/120:   8%|▊         | 36/470 [00:28<04:55,  1.47batch/s, loss=0.19] Epoch 1/120:   8%|▊         | 37/470 [00:28<04:54,  1.47batch/s, loss=0.19]Epoch 1/120:   8%|▊         | 37/470 [00:29<04:54,  1.47batch/s, loss=0.19]Epoch 1/120:   8%|▊         | 38/470 [00:29<04:50,  1.49batch/s, loss=0.19]Epoch 1/120:   8%|▊         | 38/470 [00:29<04:50,  1.49batch/s, loss=0.191]Epoch 1/120:   8%|▊         | 39/470 [00:29<04:49,  1.49batch/s, loss=0.191]Epoch 1/120:   8%|▊         | 39/470 [00:30<04:49,  1.49batch/s, loss=0.189]Epoch 1/120:   9%|▊         | 40/470 [00:30<04:45,  1.50batch/s, loss=0.189]Epoch 1/120:   9%|▊         | 40/470 [00:31<04:45,  1.50batch/s, loss=0.191]Epoch 1/120:   9%|▊         | 41/470 [00:31<04:44,  1.51batch/s, loss=0.191]Epoch 1/120:   9%|▊         | 41/470 [00:31<04:44,  1.51batch/s, loss=0.191]Epoch 1/120:   9%|▉         | 42/470 [00:31<04:44,  1.50batch/s, loss=0.191]Epoch 1/120:   9%|▉         | 42/470 [00:32<04:44,  1.50batch/s, loss=0.193]Epoch 1/120:   9%|▉         | 43/470 [00:32<04:46,  1.49batch/s, loss=0.193]Epoch 1/120:   9%|▉         | 43/470 [00:33<04:46,  1.49batch/s, loss=0.191]Epoch 1/120:   9%|▉         | 44/470 [00:33<04:44,  1.50batch/s, loss=0.191]Epoch 1/120:   9%|▉         | 44/470 [00:33<04:44,  1.50batch/s, loss=0.19] Epoch 1/120:  10%|▉         | 45/470 [00:33<04:42,  1.50batch/s, loss=0.19]Epoch 1/120:  10%|▉         | 45/470 [00:34<04:42,  1.50batch/s, loss=0.19]Epoch 1/120:  10%|▉         | 46/470 [00:34<04:41,  1.51batch/s, loss=0.19]Epoch 1/120:  10%|▉         | 46/470 [00:35<04:41,  1.51batch/s, loss=0.19]Epoch 1/120:  10%|█         | 47/470 [00:35<04:39,  1.51batch/s, loss=0.19]Epoch 1/120:  10%|█         | 47/470 [00:35<04:39,  1.51batch/s, loss=0.189]Epoch 1/120:  10%|█         | 48/470 [00:35<04:36,  1.52batch/s, loss=0.189]Epoch 1/120:  10%|█         | 48/470 [00:36<04:36,  1.52batch/s, loss=0.188]Epoch 1/120:  10%|█         | 49/470 [00:36<04:34,  1.54batch/s, loss=0.188]Epoch 1/120:  10%|█         | 49/470 [00:37<04:34,  1.54batch/s, loss=0.185]Epoch 1/120:  11%|█         | 50/470 [00:37<04:31,  1.54batch/s, loss=0.185]Epoch 1/120:  11%|█         | 50/470 [00:37<04:31,  1.54batch/s, loss=0.184]Epoch 1/120:  11%|█         | 51/470 [00:37<04:33,  1.53batch/s, loss=0.184]Epoch 1/120:  11%|█         | 51/470 [00:38<04:33,  1.53batch/s, loss=0.182]Epoch 1/120:  11%|█         | 52/470 [00:38<04:32,  1.54batch/s, loss=0.182]Epoch 1/120:  11%|█         | 52/470 [00:39<04:32,  1.54batch/s, loss=0.183]Epoch 1/120:  11%|█▏        | 53/470 [00:39<04:33,  1.53batch/s, loss=0.183]Epoch 1/120:  11%|█▏        | 53/470 [00:39<04:33,  1.53batch/s, loss=0.18] Epoch 1/120:  11%|█▏        | 54/470 [00:39<04:29,  1.55batch/s, loss=0.18]Epoch 1/120:  11%|█▏        | 54/470 [00:40<04:29,  1.55batch/s, loss=0.181]Epoch 1/120:  12%|█▏        | 55/470 [00:40<04:33,  1.51batch/s, loss=0.181]
