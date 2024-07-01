@@ -1,25 +1,150 @@
 import torch
+import cv2
 import os
+from tqdm import tqdm
 
 from img_visualizer import ImageVisualizer
 from metrics import DetectionMetrics
 from utils import save_best_metrics_to_csv
+import matplotlib.pyplot as plt
 
-def diffusion_inference(model, image, num_classes, device, num_iterations=10):
+
+
+def min_max_normalize(tensor):
+    min_val = tensor.min()
+    max_val = tensor.max()
+    normalized_tensor = (tensor - min_val) / (max_val - min_val + 1e-8)
+    return normalized_tensor
+
+def diffusion_inference(model, image, num_classes, device, num_iterations=10, draw_class=1):
+    model.eval()#########################
+    with torch.no_grad():
+        
+        # image = min_max_normalize(image)
+        
+        batch_size, _, height, width = image.shape
+        combined = torch.empty(batch_size, 1 + num_classes, height, width, device=image.device)
+        
+        # Генерируем случайный шум и объединяем с изображением
+        noise = torch.rand(batch_size, num_classes, height, width, device=image.device)
+        print("noise", noise)
+        
+        # нули сделаю 
+        image = torch.zeros(batch_size, 1, height, width)
+        noise = torch.zeros(batch_size, num_classes, height, width)
+        ###
+        
+        combined[:, 0, :, :] = image[:, 0, :, :]
+        combined[:, 1:, :, :] = noise
+
+        # Путь для сохранения промежуточных изображений шума
+        noisy_path = "noisy_masks"
+        if not os.path.exists(noisy_path):
+            os.makedirs(noisy_path)
+
+        # # Сохраняем начальный шум и изображение
+        # cv2.imwrite(f"{noisy_path}/noisy_mask_before.jpg", (noise[0][0].detach().cpu().numpy() * 255).astype('uint8'))
+        # cv2.imwrite(f"{noisy_path}/image.jpg", (combined[0, 0, :, :].detach().cpu().numpy() * 255).astype('uint8'))
+
+        plt.imsave(f"{noisy_path}/noisy_mask_before.jpg", noise[0][0].detach().cpu().numpy(), cmap='gray')
+        plt.imsave(f"{noisy_path}/image.jpg", combined[0, 0, :, :].detach().cpu().numpy(), cmap='gray')
+
+        
+        for _ in tqdm(range(num_iterations), desc="Diffusion Iterations"):
+            outputs = torch.tanh(model(combined))
+            print("outputs", outputs)
+            combined[:, 1:, :, :] = ((combined[:, 1:, :, :] - outputs + 1) / 3.0).clamp(0, 1)
+
+        # Сохраняем конечный шум
+        # cv2.imwrite(f"{noisy_path}/noisy_mask_after.jpg", (combined[0, 1 + draw_class].detach().cpu().numpy() * 255).astype('uint8'))
+        plt.imsave(f"{noisy_path}/noisy_mask_after.jpg", combined[0, 1 + draw_class].detach().cpu().numpy(), cmap='gray')
+
+        
+        
+    final_mask = combined[:, 1:, :, :]
+    return final_mask
+
+def old_diffusion_inference(model, image, num_classes, device, num_iterations=10):
     model.eval()
     with torch.no_grad():
-        noisy_mask = torch.rand(image.size(0), num_classes, image.size(2), image.size(3)).to(device)  # Генерируем случайный шум
+        noisy_mask = torch.randn(image.size(0), num_classes, image.size(2), image.size(3)).to(device)  # Генерируем случайный шум
+        print("noisy_mask shape", noisy_mask.shape)
+        print("image,shape", image.shape)
+        
+        # посмотрю на шум 
+        noisy_path = "noisy_masks"
+        if not os.path.exists(noisy_path):
+            os.makedirs(noisy_path)
 
-        for _ in range(num_iterations):
+        cv2.imwrite(f"{noisy_path}/noisy_mask_before.jpg", (noisy_mask[0][0].detach().cpu().numpy()* 255).astype('uint8'))
+        cv2.imwrite(f"{noisy_path}/image.jpg", (image[0][0].detach().cpu().numpy()* 255).astype('uint8'))
+        
+        for _ in tqdm(range(num_iterations)):
             inputs = torch.cat((image, noisy_mask), dim=-3)
+            print("inputs shape", inputs.shape)
             predicted_noise = model(inputs)
-            noisy_mask = noisy_mask - predicted_noise
-            print("noisy_mask shape", noisy_mask.shape)
+            predicted_noise = torch.tanh(predicted_noise)
             print("predicted_noise shape", predicted_noise.shape)
+            
+            print("[:, 1:, :, :].shape", inputs[:, 1:, :, :].shape)
+            noisy_mask[:, 1:, :, :] = (inputs[:, 1:, :, :] - predicted_noise + 1) / 3
             noisy_mask = torch.clamp(noisy_mask, 0, 1)
+            
+            # # print("predicted_noise", predicted_noise)
+            # # print("noisy_mask after", noisy_mask)
+            # noisy_mask = (noisy_mask - predicted_noise + 1) / 3
+            # # print("noisy_mask shape", noisy_mask.shape)
+            # # print("predicted_noise shape", predicted_noise.shape)
+            # noisy_mask = torch.clamp(noisy_mask, 0, 1)
+            # # print("noisy_mask", noisy_mask)
 
+    cv2.imwrite(f"{noisy_path}/noisy_mask_after.jpg", (noisy_mask[0][1].detach().cpu().numpy()* 255).astype('uint8'))
+        
     final_mask = noisy_mask
     return final_mask
+
+def predict(net, image, num_classes, draw_class):
+    
+
+    
+    combined = torch.empty(1,
+                           image.size(0) + num_classes,
+                           image.size(1),
+                           image.size(2),
+                           device=image.device)
+
+    noise = torch.rand(num_classes, image.size(1), image.size(2), device=image.device)
+    combined[0] = torch.cat([image, noise], dim=0)*0 ##################################### нули сделал
+    
+    # outputs = torch.tanh(net(combined)) # Прямой проход
+    # print("outputs", outputs)
+    
+    noisy_path = "noisy_masks"
+    
+    with torch.no_grad():
+        fig, axs = plt.subplots(3, 3, figsize=(10, 10))
+        for i in range(3):
+            for j in range(3):
+                
+                net_out = net(combined)
+                # print("net_out", net_out)
+                outputs = torch.tanh(net_out) # Прямой проход
+                # print("outputs", outputs)
+                combined[:,1:,:, :] = ((combined[:,1:,:, :] - outputs + 1)/3.0)
+                print(i+j, combined[0, 1].max(), combined[0, 2].max())
+                
+                axs[i, j].imshow(combined[0, 1+draw_class].cpu().detach().numpy())
+                axs[i, j].axis('off')
+
+    
+    # plt.tight_layout()
+    # plt.show()
+    
+    plt.tight_layout()
+    fig.savefig(f"{noisy_path}/image_predict.jpg", bbox_inches='tight')
+    plt.close(fig) 
+    
+  
 
 
 def test_model(
@@ -40,9 +165,9 @@ def test_model(
     # writer = SummaryWriter(log_dir="weak_logs")
     metrics_calculator = DetectionMetrics(mode="ML", num_classes=num_classes)
 
-    model.load_state_dict(torch.load(model_weight))
-    model.to(device)
-    model.eval()  # Перевод модели в режим оценки
+    # model.load_state_dict(torch.load(model_weight))
+    # model.to(device)
+    # model.eval()  # Перевод модели в режим оценки
 
     # class_names_dict = {class_info['id']: class_info['name'] for class_info in SCT_out_classes}
     # class_names_dict = {
@@ -169,26 +294,42 @@ def test_model(
     #     # save_best_metrics_to_csv(best_metrics, csv_file)
         
 
-    # для диффузии делаю 
-    num_iterations=10
+    # # для диффузии делаю 
+    # num_iterations=1
     
-    with torch.no_grad():
-        for train_batch in train_loader:
-            images = train_batch["images"].to(device)
-            initial_noise = torch.rand_like(images[:, :1, :, :]).to(device)
+    # with torch.no_grad():
+    #     # for train_batch in train_loader:
+    #     #     images = train_batch["images"].to(device)
+    #     #     initial_noise = torch.rand_like(images[:, :1, :, :]).to(device)
 
-            outputs = diffusion_inference(model, images, num_classes, device, num_iterations)
+    #     #     outputs = diffusion_inference(model, images, num_classes, device, num_iterations)
 
-            train_image_visualizer.visualize_diffusion(
-                images, outputs, class_names_dict, colors, num_iterations
-            )
+    #     #     train_image_visualizer.visualize_diffusion(
+    #     #         images, outputs, class_names_dict, colors, num_iterations
+    #     #     )
 
-        for val_batch in val_loader:
-            images_val = val_batch["images"].to(device)
-            initial_noise_val = torch.rand_like(images_val[:, :1, :, :]).to(device)
+    #     for val_batch in val_loader:
+    #         images_val = val_batch["images"].to(device)
 
-            outputs_val = diffusion_inference(model, images_val, num_classes, device, num_iterations)
+    #         outputs_val = diffusion_inference(model, images_val, num_classes, device, num_iterations)
 
-            val_image_visualizer.visualize_diffusion(
-                images_val, outputs_val, class_names_dict, colors, num_iterations
-            )
+    #         val_image_visualizer.visualize_diffusion(
+    #             images_val, outputs_val, class_names_dict, colors, num_iterations=9
+    #         )
+
+
+    model.load_state_dict(torch.load('/home/imran-nasyrov/best_diffusion_model.pth'))
+
+    model.to(device)
+
+
+    num_epochs = 300  # Количество эпох для тренировки
+
+    for epoch in range(num_epochs):
+        # model.eval() 
+        model.train()
+        running_loss = 0.0
+        loop = tqdm(val_loader, leave=True)
+        for result in loop: 
+            images, masks = result["images"].to(device, dtype=torch.float32), result["masks"][:, 1:, :, :].to(device, dtype=torch.float32)
+            predict(model, images[0], 2, 1)

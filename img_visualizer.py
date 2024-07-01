@@ -383,7 +383,7 @@ class ImageVisualizer:
     def visualize_diffusion(self, images, initial_noise, class_names_dict, colors, num_iterations=10):
         images = images.detach().cpu().numpy()
         initial_noise = initial_noise.detach().cpu().numpy()
-        print("initial_noise shape", initial_noise.shape)
+        # print("initial_noise shape", initial_noise.shape)
 
         for i in range(len(images)):
             image = images[i][0]#.cpu().numpy()
@@ -392,10 +392,15 @@ class ImageVisualizer:
 
             combined_images = []
             current_noise = initial_noise[i]
-            print("current_noise shaep", current_noise.shape)
+            # print("current_noise shaep", current_noise.shape)
 
             for iteration in range(num_iterations):
-                prob_mask = current_noise[0] ##############
+                prob_mask = current_noise[1] ##############
+                
+                max_value = np.max(prob_mask)  # Находим максимальное значение в маске
+                # print(f"Максимальное значение на итерации {iteration + 1}: {max_value}")
+
+
                 thresholded_mask = (prob_mask * 255).astype(np.uint8)
                 heatmap = cv2.applyColorMap(thresholded_mask, cv2.COLORMAP_JET)
 
