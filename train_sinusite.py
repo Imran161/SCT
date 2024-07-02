@@ -555,6 +555,30 @@ class Weight_opt_class:
         return pixel_all_class_weights
 
 
+def run_example(task_prompt, image, text_input=None):
+    if text_input is None:
+        prompt = task_prompt
+    else:
+        prompt = task_prompt + text_input
+    inputs = processor(text=prompt, images=image, return_tensors="pt")
+    generated_ids = model.generate(
+      input_ids=inputs["input_ids"].cuda(),
+      pixel_values=inputs["pixel_values"].cuda(),
+      max_new_tokens=1024,
+      early_stopping=False,
+      do_sample=False,
+      num_beams=3,
+    )
+    generated_text = processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
+    parsed_answer = processor.post_process_generation(
+        generated_text, 
+        task=task_prompt, 
+        image_size=(image.width, image.height)
+    )
+
+    return parsed_answer
+
+
 if __name__ == "__main__":
     # path = "/home/imran-nasyrov/sinusite_json_data"
     # subdirectories_list = get_direct_subdirectories(path)
@@ -600,7 +624,7 @@ if __name__ == "__main__":
     print("len val_loader", len(val_loader))
     print("len train_loader", len(train_loader))
 
-    device = torch.device("cuda:2")
+    device = torch.device("cuda:0")
     print(device)
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
 
@@ -658,6 +682,10 @@ if __name__ == "__main__":
     # model = AutoModelForCausalLM.from_pretrained(model_id, trust_remote_code=True)
     # processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
 
+    # # эти две строки для инференса потом 
+    # # task_prompt = '<REFERRING_EXPRESSION_SEGMENTATION>'
+    # # run_example(task_prompt, image) тут image надо давать 
+    
     # # Пример настройки модели для одноканальных изображений
     # class FlorenceSegmentationModel(nn.Module):
     #     def __init__(self, model):
@@ -669,15 +697,16 @@ if __name__ == "__main__":
     #         x = x.repeat(1, 3, 1, 1)
     #         outputs = self.model(pixel_values=x)
 
-    #         print("Type of outputs:", type(outputs))
-    #         print("Keys in outputs:", outputs.keys())
-    #         print("outputs.logits shape", outputs.logits.shape)
+    #         # print("Type of outputs:", type(outputs))
+    #         # print("Keys in outputs:", outputs.keys())
+    #         # print("outputs.logits shape", outputs.logits.shape)
     #         return outputs.logits
 
     # model = FlorenceSegmentationModel(model).to(device)
+    
 
     learning_rate = 3e-4
-    num_epochs = 1200
+    num_epochs = 120
 
     optimizer = Adam(model.parameters(), lr=learning_rate)
     lr_sched = None
@@ -685,7 +714,7 @@ if __name__ == "__main__":
     use_class_weight = True
     use_pixel_weight = True
     use_pixel_opt = False
-    power = "2.14_sinusite_weak"
+    power = "2.23_sinusite_weak"
 
     exp_setup = ExperimentSetup(
         train_loader, total_train, pixel_total_train, batch_size, num_classes
@@ -700,30 +729,29 @@ if __name__ == "__main__":
         use_class_weight, use_pixel_weight, use_pixel_opt, power
     )
 
-    train_model(
-        model,
-        optimizer,
-        criterion,
-        lr_sched,
-        num_epochs,
-        train_loader,
-        val_loader,
-        device,
-        num_classes,
-        experiment_name,
-        all_class_weights=all_class_weights,
-        alpha=pixel_all_class_weights,
-        use_opt_pixel_weight=use_pixel_opt,
-        num_cyclic_steps=0,
-        max_n=3,
-        max_k=3,
-        use_augmentation=False,
-    )
+    # train_model(
+    #     model,
+    #     optimizer,
+    #     criterion,
+    #     lr_sched,
+    #     num_epochs,
+    #     train_loader,
+    #     val_loader,
+    #     device,
+    #     num_classes,
+    #     experiment_name,
+    #     all_class_weights=all_class_weights,
+    #     alpha=pixel_all_class_weights,
+    #     use_opt_pixel_weight=use_pixel_opt,
+    #     num_cyclic_steps=0,
+    #     max_n=3,
+    #     max_k=3,
+    #     use_augmentation=False,
+    # )
 
     # это картинки нарисует предсказанные
 
-    # model_weight = f"sinusite_best_models/best_{experiment_name}_model.pth"
-    model_weight = "/home/imran-nasyrov/sanya_best_diffusion_model.pth"
+    model_weight = f"sinusite_best_models/best_{experiment_name}_model.pth"
     
     val_predict_path = f"diff_predict_sinusite/predict_{experiment_name}/val"
     train_predict_path = f"diff_predict_sinusite/predict_{experiment_name}/train"
@@ -731,14 +759,15 @@ if __name__ == "__main__":
     limited_train_loader = itertools.islice(train_loader, 6)
     limited_val_loader = itertools.islice(val_loader, 6)
 
-    # avg_loss = test_model(
-    #     model,
-    #     model_weight,
-    #     criterion,
-    #     limited_train_loader,
-    #     train_predict_path,
-    #     limited_val_loader,
-    #     val_predict_path,
-    #     device,
-    #     num_classes,
-    # )
+    avg_loss = test_model(
+        model,
+        model_weight,
+        criterion,
+        train_loader,# limited_train_loader,
+        train_predict_path,
+        val_loader, #limited_val_loader,
+        val_predict_path,
+        device,
+        num_classes,
+        num_images_to_draw=36
+    )

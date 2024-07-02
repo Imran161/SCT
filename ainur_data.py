@@ -174,9 +174,11 @@ if __name__ == "__main__":
     # directory_path = "sct_project/sct_data/ainur_paths"
     # directory_path = "/mnt/datastore/Medical/stomach_paths"
     # вторая часть кишков, их Айнур сразу по стеклам сделал я так понял
-    directory_path = "/mnt/netstorage/pathomorphology/cropped/кишечник_19.04.2024/256"
+    # directory_path = "/mnt/netstorage/pathomorphology/cropped/кишечник_19.04.2024/256"
+    directory_path = "/mnt/netstorage/pathomorphology/cropped/colon/256"
     subdirectories_list = get_direct_subdirectories(directory_path)
 
+    # with tqdm(total=len(subdirectories_list), desc="Making files") as pbar_dirs:   
     #     for i in subdirectories_list: # tqdm, desc="Processing subdirectories"):
     #         print("i", i) # sct_project/sct_data/ainur_paths/29.01.23_Датасеты биопсии C16_22.2.15881_22.2.15881
 
@@ -375,22 +377,28 @@ if __name__ == "__main__":
     #                     # pbar.update(1)
 
     #                     pbar_dirs.update(1)
-
+            
+    #         pbar_dirs.update(1)
+            
     #             # except:
     #             #     pass
     #########################################
     # j small_ainur/validate/home_ainur-karimov_data_raw_04.07.22_Размеченные_22.2.4739_level_0_78.hdf5
     # j small_ainur/validate/home_ainur-karimov_data_raw_29.01.23_Датасеты биопсии C16_22.1.2205-1_22.1.2205-1_level_0_66.hdf5#
 
+
+
+
+    # вот это для второй части кишков, тут в guts_part_2 все сохранилось нормально
     for i in subdirectories_list:
-        if os.path.basename(i) in ["train", "validate"]:
+        if os.path.basename(i) in ["train", "validate", "test"]:
             subsubdirs = get_direct_subdirectories(i)
             for subsub in tqdm(subsubdirs):
                 # if "110363" in subsub:
                 papka = os.path.basename(subsub)
                 print("papka", papka)
-                images_path = f"/mnt/netstorage/Medicine/Medical/stomach_json_part_2/{papka}/images"
-                folder_path = f"/mnt/netstorage/Medicine/Medical/stomach_json_part_2/{papka}/annotations"
+                images_path = f"/mnt/netstorage/Medicine/Medical/guts_json_01_07/{papka}/images"
+                folder_path = f"/mnt/netstorage/Medicine/Medical/guts_json_01_07/{papka}/annotations"
                 if not os.path.exists(images_path):
                     os.makedirs(images_path)
                 if not os.path.exists(folder_path):

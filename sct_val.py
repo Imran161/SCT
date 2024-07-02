@@ -103,23 +103,23 @@ def old_diffusion_inference(model, image, num_classes, device, num_iterations=10
     final_mask = noisy_mask
     return final_mask
 
-def predict(net, image, num_classes, draw_class):
-    
-
+def predict(net, image, num_classes, draw_class, val_predict_path, device, img_index):
     
     combined = torch.empty(1,
                            image.size(0) + num_classes,
                            image.size(1),
                            image.size(2),
-                           device=image.device)
+                           device=device)
 
-    noise = torch.rand(num_classes, image.size(1), image.size(2), device=image.device)
-    combined[0] = torch.cat([image, noise], dim=0)*0 ##################################### нули сделал
+    noise = torch.rand(num_classes, image.size(1), image.size(2), device=device)
+    combined[0] = torch.cat([image, noise], dim=0)#*0 ##################################### нули сделал
     
     # outputs = torch.tanh(net(combined)) # Прямой проход
     # print("outputs", outputs)
     
-    noisy_path = "noisy_masks"
+    # noisy_path = "noisy_masks"
+    # if not os.path.exists(noisy_path):
+    #     os.makedirs(noisy_path)
     
     with torch.no_grad():
         fig, axs = plt.subplots(3, 3, figsize=(10, 10))
@@ -131,7 +131,7 @@ def predict(net, image, num_classes, draw_class):
                 outputs = torch.tanh(net_out) # Прямой проход
                 # print("outputs", outputs)
                 combined[:,1:,:, :] = ((combined[:,1:,:, :] - outputs + 1)/3.0)
-                print(i+j, combined[0, 1].max(), combined[0, 2].max())
+                # print(i+j, combined[0, 1].max(), combined[0, 2].max())
                 
                 axs[i, j].imshow(combined[0, 1+draw_class].cpu().detach().numpy())
                 axs[i, j].axis('off')
@@ -141,7 +141,9 @@ def predict(net, image, num_classes, draw_class):
     # plt.show()
     
     plt.tight_layout()
-    fig.savefig(f"{noisy_path}/image_predict.jpg", bbox_inches='tight')
+    fig_filename = f"{val_predict_path}/image_predict_{img_index}.jpg"
+    fig.savefig(fig_filename, bbox_inches='tight')
+    print("savefig", fig_filename)
     plt.close(fig) 
     
   
@@ -158,6 +160,7 @@ def test_model(
     device,
     num_classes,
     epoch=None,
+    num_images_to_draw=36
 ):
     train_image_visualizer = ImageVisualizer(train_predict_path)
     val_image_visualizer = ImageVisualizer(val_predict_path)
@@ -165,9 +168,9 @@ def test_model(
     # writer = SummaryWriter(log_dir="weak_logs")
     metrics_calculator = DetectionMetrics(mode="ML", num_classes=num_classes)
 
-    # model.load_state_dict(torch.load(model_weight))
-    # model.to(device)
-    # model.eval()  # Перевод модели в режим оценки
+    model.load_state_dict(torch.load(model_weight))
+    model.to(device)
+    model.eval()  # Перевод модели в режим оценки
 
     # class_names_dict = {class_info['id']: class_info['name'] for class_info in SCT_out_classes}
     # class_names_dict = {
@@ -318,18 +321,25 @@ def test_model(
     #         )
 
 
-    model.load_state_dict(torch.load('/home/imran-nasyrov/best_diffusion_model.pth'))
 
-    model.to(device)
+    # num_epochs = 300  # Количество эпох для тренировки
 
-
-    num_epochs = 300  # Количество эпох для тренировки
-
-    for epoch in range(num_epochs):
-        # model.eval() 
-        model.train()
-        running_loss = 0.0
-        loop = tqdm(val_loader, leave=True)
-        for result in loop: 
+    # for epoch in range(num_epochs):
+    #     # model.eval() 
+    #     # model.train()
+    #     running_loss = 0.0
+    #     loop = tqdm(val_loader, leave=True)
+    #     for fig_filename, result in enumerate(loop): 
+    #         images, masks = result["images"].to(device, dtype=torch.float32), result["masks"][:, 1:, :, :].to(device, dtype=torch.float32)
+    #         # for i in range(images.shape[0]):
+    #         predict(model, images[0], 2, 1, val_predict_path, device, fig_filename)
+            
+    
+    img_index = 0
+    while img_index < num_images_to_draw:
+        for result in val_loader:
             images, masks = result["images"].to(device, dtype=torch.float32), result["masks"][:, 1:, :, :].to(device, dtype=torch.float32)
-            predict(model, images[0], 2, 1)
+            predict(model, images[0], 2, 1, val_predict_path, device, img_index)
+            img_index += 1
+            if img_index >= num_images_to_draw:
+                break

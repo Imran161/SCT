@@ -665,70 +665,70 @@ class Universal_npz_Segmentation_Dataset():
 
 
 # это старые для желудка ниже для кишки
-Ainur_base_classes = [
+# Ainur_base_classes = [
     
-                    {'id': 1, 'name': 'SE', "summable_masks":[1], "subtractive_masks":[]},
-                    {'id': 2, 'name': 'GT', "summable_masks":[2], "subtractive_masks":[]},
-                    {'id': 3, 'name': 'NG', "summable_masks":[3], "subtractive_masks":[]},
-                    {'id': 4, 'name': 'F', "summable_masks":[4], "subtractive_masks":[]},
-                    {'id': 5, 'name': 'IM', "summable_masks":[5], "subtractive_masks":[]},
+#                     {'id': 1, 'name': 'SE', "summable_masks":[1], "subtractive_masks":[]},
+#                     {'id': 2, 'name': 'GT', "summable_masks":[2], "subtractive_masks":[]},
+#                     {'id': 3, 'name': 'NG', "summable_masks":[3], "subtractive_masks":[]},
+#                     {'id': 4, 'name': 'F', "summable_masks":[4], "subtractive_masks":[]},
+#                     {'id': 5, 'name': 'IM', "summable_masks":[5], "subtractive_masks":[]},
                     
-                    {'id': 6, 'name': 'LT', "summable_masks":[6], "subtractive_masks":[]},
-                    {'id': 7, 'name': 'GINL', "summable_masks":[7], "subtractive_masks":[]},
-                    {'id': 8, 'name': 'GINH', "summable_masks":[8], "subtractive_masks":[]},
-                    {'id': 9, 'name': 'TACG1', "summable_masks":[9], "subtractive_masks":[]},
-                    {'id': 10, 'name': 'TACG2', "summable_masks":[10], "subtractive_masks":[]},
+#                     {'id': 6, 'name': 'LT', "summable_masks":[6], "subtractive_masks":[]},
+#                     {'id': 7, 'name': 'GINL', "summable_masks":[7], "subtractive_masks":[]},
+#                     {'id': 8, 'name': 'GINH', "summable_masks":[8], "subtractive_masks":[]},
+#                     {'id': 9, 'name': 'TACG1', "summable_masks":[9], "subtractive_masks":[]},
+#                     {'id': 10, 'name': 'TACG2', "summable_masks":[10], "subtractive_masks":[]},
                     
-                    {'id': 11, 'name': 'TACG3', "summable_masks":[11], "subtractive_masks":[]},
-                    {'id': 12, 'name': 'PACG1', "summable_masks":[12], "subtractive_masks":[]},
-                    {'id': 13, 'name': 'PACG2', "summable_masks":[13], "subtractive_masks":[]},
-                    {'id': 14, 'name': 'MPAC', "summable_masks":[14], "subtractive_masks":[]},
-                    {'id': 15, 'name': 'PCC', "summable_masks":[15], "subtractive_masks":[]},
+#                     {'id': 11, 'name': 'TACG3', "summable_masks":[11], "subtractive_masks":[]},
+#                     {'id': 12, 'name': 'PACG1', "summable_masks":[12], "subtractive_masks":[]},
+#                     {'id': 13, 'name': 'PACG2', "summable_masks":[13], "subtractive_masks":[]},
+#                     {'id': 14, 'name': 'MPAC', "summable_masks":[14], "subtractive_masks":[]},
+#                     {'id': 15, 'name': 'PCC', "summable_masks":[15], "subtractive_masks":[]},
                     
-                    {'id': 16, 'name': 'PCC-NOS', "summable_masks":[16], "subtractive_masks":[]},
-                    {'id': 17, 'name': 'MAC1', "summable_masks":[17], "subtractive_masks":[]},
-                    {'id': 18, 'name': 'MAC2', "summable_masks":[18], "subtractive_masks":[]},
-                    {'id': 19, 'name': 'ACLS', "summable_masks":[19], "subtractive_masks":[]},
-                    {'id': 20, 'name': 'HAC', "summable_masks":[20], "subtractive_masks":[]},
+#                     {'id': 16, 'name': 'PCC-NOS', "summable_masks":[16], "subtractive_masks":[]},
+#                     {'id': 17, 'name': 'MAC1', "summable_masks":[17], "subtractive_masks":[]},
+#                     {'id': 18, 'name': 'MAC2', "summable_masks":[18], "subtractive_masks":[]},
+#                     {'id': 19, 'name': 'ACLS', "summable_masks":[19], "subtractive_masks":[]},
+#                     {'id': 20, 'name': 'HAC', "summable_masks":[20], "subtractive_masks":[]},
                     
-                    {'id': 21, 'name': 'ACFG', "summable_masks":[21], "subtractive_masks":[]},
-                    {'id': 22, 'name': 'SCC', "summable_masks":[22], "subtractive_masks":[]},
-                    {'id': 23, 'name': 'NDC', "summable_masks":[23], "subtractive_masks":[]},
-                    {'id': 24, 'name': 'NED', "summable_masks":[24], "subtractive_masks":[]}
+#                     {'id': 21, 'name': 'ACFG', "summable_masks":[21], "subtractive_masks":[]},
+#                     {'id': 22, 'name': 'SCC', "summable_masks":[22], "subtractive_masks":[]},
+#                     {'id': 23, 'name': 'NDC', "summable_masks":[23], "subtractive_masks":[]},
+#                     {'id': 24, 'name': 'NED', "summable_masks":[24], "subtractive_masks":[]}
                     
-                    ]
+#                     ]
 
 
 # это новые для кишки 
-# Ainur_base_classes = [
-    
-#                     {'id': 1, 'name': 'GT', "summable_masks":[1], "subtractive_masks":[]},
-#                     {'id': 2, 'name': 'NGC', "summable_masks":[2], "subtractive_masks":[]},
-#                     {'id': 3, 'name': 'F', "summable_masks":[3], "subtractive_masks":[]},
-#                     {'id': 4, 'name': 'LT', "summable_masks":[4], "subtractive_masks":[]},
-#                     {'id': 5, 'name': 'SDL', "summable_masks":[5], "subtractive_masks":[]},
+Ainur_base_classes = [
+                    # {'id': 0, 'name': '0', "summable_masks":[0], "subtractive_masks":[]}, не згаю надо или нет
+                    {'id': 1, 'name': 'GT', "summable_masks":[1], "subtractive_masks":[]},
+                    {'id': 2, 'name': 'NGC', "summable_masks":[2], "subtractive_masks":[]},
+                    {'id': 3, 'name': 'F', "summable_masks":[3], "subtractive_masks":[]},
+                    {'id': 4, 'name': 'LT', "summable_masks":[4], "subtractive_masks":[]},
+                    {'id': 5, 'name': 'SDL', "summable_masks":[5], "subtractive_masks":[]},
                     
-#                     {'id': 6, 'name': 'SDH', "summable_masks":[6], "subtractive_masks":[]},
-#                     {'id': 7, 'name': 'HPM', "summable_masks":[7], "subtractive_masks":[]},
-#                     {'id': 8, 'name': 'HPG', "summable_masks":[8], "subtractive_masks":[]},
-#                     {'id': 9, 'name': 'APL', "summable_masks":[9], "subtractive_masks":[]},
-#                     {'id': 10, 'name': 'APH', "summable_masks":[10], "subtractive_masks":[]},
+                    {'id': 6, 'name': 'SDH', "summable_masks":[6], "subtractive_masks":[]},
+                    {'id': 7, 'name': 'HPM', "summable_masks":[7], "subtractive_masks":[]},
+                    {'id': 8, 'name': 'HPG', "summable_masks":[8], "subtractive_masks":[]},
+                    {'id': 9, 'name': 'APL', "summable_masks":[9], "subtractive_masks":[]},
+                    {'id': 10, 'name': 'APH', "summable_masks":[10], "subtractive_masks":[]},
                     
-#                     {'id': 11, 'name': 'TA', "summable_masks":[11], "subtractive_masks":[]},
-#                     {'id': 12, 'name': 'VA', "summable_masks":[12], "subtractive_masks":[]},
-#                     {'id': 13, 'name': 'INL', "summable_masks":[13], "subtractive_masks":[]},
-#                     {'id': 14, 'name': 'INH', "summable_masks":[14], "subtractive_masks":[]},
-#                     {'id': 15, 'name': 'ADCG1', "summable_masks":[15], "subtractive_masks":[]},
+                    {'id': 11, 'name': 'TA', "summable_masks":[11], "subtractive_masks":[]},
+                    {'id': 12, 'name': 'VA', "summable_masks":[12], "subtractive_masks":[]},
+                    {'id': 13, 'name': 'INL', "summable_masks":[13], "subtractive_masks":[]},
+                    {'id': 14, 'name': 'INH', "summable_masks":[14], "subtractive_masks":[]},
+                    {'id': 15, 'name': 'ADCG1', "summable_masks":[15], "subtractive_masks":[]},
                     
-#                     {'id': 16, 'name': 'ADCG2', "summable_masks":[16], "subtractive_masks":[]},
-#                     {'id': 17, 'name': 'ADCG3', "summable_masks":[17], "subtractive_masks":[]},
-#                     {'id': 18, 'name': 'MAC', "summable_masks":[18], "subtractive_masks":[]},
-#                     {'id': 19, 'name': 'SRC', "summable_masks":[19], "subtractive_masks":[]},
-#                     {'id': 20, 'name': 'MC', "summable_masks":[20], "subtractive_masks":[]},
+                    {'id': 16, 'name': 'ADCG2', "summable_masks":[16], "subtractive_masks":[]},
+                    {'id': 17, 'name': 'ADCG3', "summable_masks":[17], "subtractive_masks":[]},
+                    {'id': 18, 'name': 'MAC', "summable_masks":[18], "subtractive_masks":[]},
+                    {'id': 19, 'name': 'SRC', "summable_masks":[19], "subtractive_masks":[]},
+                    {'id': 20, 'name': 'MC', "summable_masks":[20], "subtractive_masks":[]},
                     
-#                     {'id': 21, 'name': 'NDC', "summable_masks":[21], "subtractive_masks":[]},
-#                     {'id': 22, 'name': 'NED', "summable_masks":[22], "subtractive_masks":[]}          
-#                     ]
+                    {'id': 21, 'name': 'NDC', "summable_masks":[21], "subtractive_masks":[]},
+                    {'id': 22, 'name': 'NED', "summable_masks":[22], "subtractive_masks":[]}          
+                    ]
 
 
 Ainur_out_classes = Ainur_base_classes
@@ -785,15 +785,15 @@ def save_to_papki(path, number_papki):
                         ((0,139,139), 'Тёмный циан'), ((0,255,255), 'Морская волна')]
             
     # это старые для желудка
-    list_of_name_out_classes = ["SE", "GT", "NG", "F", "IM", "LT", "GINL", "GINH", "TACG1", "TACG2", "TACG3", "PACG1", "PACG2", 
-                                "MPAC", "PCC", "PCC-NOS", "MAC1", "MAC2", "ACLS", "HAC", "ACFG", "SCC", "NDC", "NED"]
+    # list_of_name_out_classes = ["SE", "GT", "NG", "F", "IM", "LT", "GINL", "GINH", "TACG1", "TACG2", "TACG3", "PACG1", "PACG2", 
+    #                             "MPAC", "PCC", "PCC-NOS", "MAC1", "MAC2", "ACLS", "HAC", "ACFG", "SCC", "NDC", "NED"]
 
     # а это новые для кишки
-    # list_of_name_out_classes = [ "GT", "NGC", "F", "LT", "SDL", 
-    #                             "SDH", "HPM", "HPG", "APL", "APH", 
-    #                             "TA", "VA", "INL", "INH", "ADCG1", 
-    #                             "ADCG2", "ADCG3", "MAC", "SRC", "MC", 
-    #                             "NDC", "NED", ]
+    list_of_name_out_classes = [ "GT", "NGC", "F", "LT", "SDL", 
+                                "SDH", "HPM", "HPG", "APL", "APH", 
+                                "TA", "VA", "INL", "INH", "ADCG1", 
+                                "ADCG2", "ADCG3", "MAC", "SRC", "MC", 
+                                "NDC", "NED", ]
 
     # print("sct_coco.all_img_list", sct_coco.all_img_list)
 
@@ -850,7 +850,7 @@ def save_to_papki(path, number_papki):
                     
                             
                             
-                papki_path = f"/home/imran-nasyrov/sct_project/sct_data/output_image_ainur/{list_of_name_out_classes[clas]}"
+                papki_path = f"/home/imran-nasyrov/output_guts2/{list_of_name_out_classes[clas]}"
                 
                 if not os.path.exists(papki_path):
                     os.makedirs(papki_path)
@@ -860,35 +860,48 @@ def save_to_papki(path, number_papki):
                 # print("k", k)
                 # print("photo_path", photo_path)
                 
-                all_files = get_all_files("/home/imran-nasyrov/sct_project/sct_data/output_image_ainur/" + str(list_of_name_out_classes[clas]))
+                all_files = get_all_files("/home/imran-nasyrov/output_guts2/" + str(list_of_name_out_classes[clas]))
                 # print("all_files", all_files)
-                if len(all_files) < 100: # убрать это
+                if len(all_files) < 50: # убрать это
                     cv2.imwrite(photo_path, rgb_image)
         
         
 #########################################################################################
 
-path = "/home/imran-nasyrov/sct_project/sct_data/CONVERT_AINUR/"
-subdirectories_list = get_direct_subdirectories(path)
+# # path = "/home/imran-nasyrov/sct_project/sct_data/CONVERT_AINUR/"
+# path = "/mnt/netstorage/Medicine/Medical/stomach_json_part_2"
+# subdirectories_list = get_direct_subdirectories(path)
     
-# print("subdirectories_list", subdirectories_list)
-with tqdm(total=len(subdirectories_list), desc="Making files") as pbar_dirs:      
-    for i in subdirectories_list:
-        # try:
-        # print("i", i) # i /home/imran-nasyrov/sct_project/sct_data/CONVERT_AINUR/78
-        # all_files = get_all_files(i)
+# # print("subdirectories_list", subdirectories_list)
+# with tqdm(total=len(subdirectories_list), desc="Making files") as pbar_dirs:      
+#     for i in subdirectories_list:
+#         # try:
+#         # print("i", i) # i /home/imran-nasyrov/sct_project/sct_data/CONVERT_AINUR/78
+#         # all_files = get_all_files(i)
         
-        parts = i.split('/')
-        id_number = parts[-1]
-        print("id_number", id_number) # id_number 78
+#         parts = i.split('/')
+#         id_number = parts[-1]
+#         print("id_number", id_number) # id_number 78
 
         
-        save_to_papki(i, id_number) 
-        # except:
-        #     print("no")
+#         save_to_papki(i, id_number) 
+#         # except:
+#         #     print("no")
         
-        pbar_dirs.update(1)  
+#         pbar_dirs.update(1)  
   
-print("ok")
+# print("ok")
 
 #########################################################################################
+
+# Это чисто чтобы одну папку проверить 
+# path = "/home/imran-nasyrov/111303"
+path = "/mnt/netstorage/Medicine/Medical/guts_json_01_07/126"
+    
+
+parts = path.split('/')
+id_number = parts[-1]
+print("id_number", id_number) # id_number 78
+
+
+save_to_papki(path, id_number) 
