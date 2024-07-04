@@ -355,12 +355,23 @@ class JsonHandler:
                 return image.float(), mask.long(), rgb_image
 
             image = (image - image.min()) / (image.max() - image.min() + 1e-7)
+            
+            task_prompt = "<REFERRING_EXPRESSION_SEGMENTATION>"
+            
             result = {
                 "images": image.float(),
                 "masks": mask.long(),
                 "labels": torch.amax(mask, dim=(-1, -2)),
                 "values": torch.sum(mask, (-1, -2)),
+                "task_prompt": task_prompt
             }
-            return result
+            
+            # было так, но для флоренции меняю
+            return result 
+
+            # task_prompt = "<REFERRING_EXPRESSION_SEGMENTATION>"
+            
+            # return task_prompt, image.float(), mask.long()
+            
         else:
             return gray_image, mask

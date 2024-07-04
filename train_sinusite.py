@@ -2,34 +2,34 @@ import itertools
 import os
 import warnings
 
+import cv2
 import numpy as np
 import pandas as pd
 import segmentation_models_pytorch as smp
-import torch.nn.functional as F
-import torch.nn as nn
-from transformers import (
-    SegformerForSemanticSegmentation,
-    SegformerFeatureExtractor,
-    SegformerConfig,
-    AutoImageProcessor,
-    AutoModelForImageSegmentation,
-    AutoProcessor,
-    AutoModelForCausalLM,
-)
 import torch
-import cv2
+import torch.nn as nn
+import torch.nn.functional as F
 from sklearn.exceptions import UndefinedMetricWarning
 from torch.optim import Adam
 from torch.utils.data._utils.collate import default_collate
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+from transformers import (
+    AutoImageProcessor,
+    AutoModelForCausalLM,
+    AutoModelForImageSegmentation,
+    AutoProcessor,
+    SegformerConfig,
+    SegformerFeatureExtractor,
+    SegformerForSemanticSegmentation,
+)
 
 from coco_classes import sinusite_base_classes, sinusite_pat_classes_3
 from coco_dataloaders import SINUSITE_COCODataLoader
 from metrics import DetectionMetrics
 from sct_val import test_model
 from transforms import SegTransform
-from utils import ExperimentSetup, iou_metric, set_seed, save_best_metrics_to_csv
+from utils import ExperimentSetup, iou_metric, save_best_metrics_to_csv, set_seed
 
 set_seed(64)
 
@@ -166,25 +166,34 @@ def add_noise_and_combine(images, masks, epoch, num_epochs, k_values, batch_idx,
     return combined.clone() 
        
 
-
-
 def save_images(images, noisy_masks, epoch, batch_idx, save_dir="noisy_masks"):
-    # path = f"{save_dir}/{epoch}/{batch_idx}"
-    # os.makedirs(path, exist_ok=True)
-    # batch_size = images.size(0)
+    path = f"{save_dir}/{epoch}/{batch_idx}"
+    os.makedirs(path, exist_ok=True)
+    batch_size = images.size(0)
 
     # for i in range(batch_size):
     #     # Преобразуем изображения и маски к формату (H, W, C) и диапазону [0, 255]
     #     img = (images[i].cpu().numpy() * 255).astype(np.uint8)#.squeeze(0)
     #     mask_0 = (noisy_masks[i][0].cpu().numpy() * 255).astype(np.uint8)
     #     mask_1 = (noisy_masks[i][1].cpu().numpy() * 255).astype(np.uint8)
-
+    #
     #     # Сохраняем изображения
     #     cv2.imwrite(os.path.join(path, f"epoch_{epoch+1}_batch_{batch_idx}_img_{i+1}.jpg"), img)
     #     cv2.imwrite(os.path.join(path, f"epoch_{epoch+1}_batch_{batch_idx}_mask0_{i+1}.jpg"), mask_0)
     #     cv2.imwrite(os.path.join(path, f"epoch_{epoch+1}_batch_{batch_idx}_mask1_{i+1}.jpg"), mask_1)
     
-    pass
+
+    for i in range(batch_size):
+        # Преобразуем изображения и маски к формату (H, W, C) и диапазону [0, 255]
+        img = (images[i].cpu().numpy() * 255).astype(np.uint8).squeeze(0)
+        mask_0 = (noisy_masks[i][0].cpu().numpy() * 255).astype(np.uint8)
+        mask_1 = (noisy_masks[i][1].cpu().numpy() * 255).astype(np.uint8)
+
+        # Объединяем изображения горизонтально
+        combined_image = np.hstack((img, mask_0, mask_1))
+
+        # Сохраняем комбинированное изображение
+        cv2.imwrite(os.path.join(path, f"epoch_{epoch}_batch_{batch_idx}_img_{i}.jpg"), combined_image)
 
 def train_model(
     model,
@@ -256,14 +265,21 @@ def train_model(
                 optimizer.zero_grad()
                 images = train_batch["images"].to(device)
                 masks = train_batch["masks"][:, 1:, :, :].to(device)
+                
+                
+                # unique_values = torch.unique(masks)
+                # num_unique_values = unique_values.numel()
+                # print("Уникальные значения:", unique_values)
+                # print("Количество уникальных значений:", num_unique_values)
 
                 if use_augmentation:
                     images, masks = seg_transform.apply_transform(images, masks)
+                    # save_images(images, masks, epoch, batch_idx, save_dir="transforms")
 
                 # шум
                 # # шум к маске
-                k_values = np.arange(0, 10.1, 0.1) 
-                combined = add_noise_and_combine(images, masks, epoch, num_epochs, k_values, batch_idx, num_batches)
+                # k_values = np.arange(0, 10.1, 0.1) 
+                # combined = add_noise_and_combine(images, masks, epoch, num_epochs, k_values, batch_idx, num_batches)
         
                 if all_class_weights is not None:
                     all_weights_no_fon = [x[1:] for x in all_class_weights]
@@ -271,35 +287,29 @@ def train_model(
                     all_weights_no_fon = None
 
                 # шум
-                outputs = model(combined) # 2 канала на выходе 3 на входе (num_classes + 1)              
-                outputs = torch.tanh(outputs) 
+                # outputs = model(combined) # 2 канала на выходе 3 на входе (num_classes + 1)              
+                # # outputs = torch.tanh(outputs) 
                 # outputs = torch.sigmoid(outputs) 
                 
-                # Вычитаем предсказанный шум из исходного изображения
-                outputs = (combined[:,1:,:, :] - outputs + 1) / 3.0
-                
-                
-                # if torch.isnan(outputs).any():
-                #     print("outputs", outputs)
-                #     print("NaN detected in outputs")
-        
-                loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
-
-                # outputs = model(images)
-                # outputs = torch.sigmoid(outputs)
+                # # Вычитаем предсказанный шум из исходного изображения
+                # # outputs = (combined[:,1:,:, :] - outputs + 1) / 3.0
                 # loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
+
+                outputs = model(images)
+                outputs = torch.sigmoid(outputs)
+                loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
                 
                 loss.backward()
                 optimizer.step()
                 train_loss_sum += loss.item()
                 
                 # Сохранение изображений и масок
-                save_images(images, combined[:, 1:, :, :], epoch, batch_idx)
+                # save_images(images, combined[:, 1:, :, :], epoch, batch_idx)
 
                 # шум
-                train_iou_batch = iou_metric(outputs, masks, num_classes)
-                # не шум 
                 # train_iou_batch = iou_metric(outputs, masks, num_classes)
+                # не шум 
+                train_iou_batch = iou_metric(outputs, masks, num_classes)
                 train_iou_sum += train_iou_batch
 
                 # для трейна метрики тоже посчитаю
@@ -358,37 +368,36 @@ def train_model(
         with torch.no_grad():
             for val_batch in val_loader:
                 images_val = val_batch["images"].to(device)
-                masks_val = val_batch["masks"][:, 1:].to(device).float() # float() для шума добавил
+                masks_val = val_batch["masks"][:, 1:].to(device)#.float() # float() для шума добавил
 
                 # шум
-                noise_val = torch.rand_like(masks_val).to(device)
-                combined_val = torch.cat((images_val, noise_val), dim=1)
+                # noise_val = torch.rand_like(masks_val).to(device)
+                # combined_val = torch.cat((images_val, noise_val), dim=1)
                 
-                outputs_val = model(combined_val)
-                outputs_val = torch.tanh(outputs_val)
+                # outputs_val = model(combined_val)
+                # # outputs_val = torch.tanh(outputs_val)
                 # outputs_val = torch.sigmoid(outputs_val)
-                corrected_masks_val = outputs_val
-                corrected_masks_val = (combined_val[:, 1:, :, :] - outputs_val + 1) / 3
-
-                # # Циклический процесс для предсказаний
-                # # сделать ноль этого цикла, на тесте сделаем цикл
-                # # for _ in range(num_cyclic_steps):
-                # #     outputs_val = model(images_val)
-                # #     outputs_val = torch.sigmoid(outputs_val)
-
-
-                val_loss_sum += criterion(corrected_masks_val, masks_val, None, None).item()
-                val_iou_batch = iou_metric(corrected_masks_val, masks_val, num_classes)
+                # corrected_masks_val = outputs_val
+                # # corrected_masks_val = (combined_val[:, 1:, :, :] - outputs_val + 1) / 3
+                # # # Циклический процесс для предсказаний
+                # # # сделать ноль этого цикла, на тесте сделаем цикл
+                # # # for _ in range(num_cyclic_steps):
+                # # #     outputs_val = model(images_val)
+                # # #     outputs_val = torch.sigmoid(outputs_val)
+                # val_loss_sum += criterion(corrected_masks_val, masks_val, None, None).item()
+                # val_iou_batch = iou_metric(corrected_masks_val, masks_val, num_classes)
                 
-                # outputs_val = model(images_val)
-                # outputs_val = torch.sigmoid(outputs_val)
-                # val_loss_sum += criterion(outputs_val, masks_val, None, None).item()
-                # val_iou_batch = iou_metric(outputs_val, masks_val, num_classes)
+                
+                # не шум
+                outputs_val = model(images_val)
+                outputs_val = torch.sigmoid(outputs_val)
+                val_loss_sum += criterion(outputs_val, masks_val, None, None).item()
+                val_iou_batch = iou_metric(outputs_val, masks_val, num_classes)
                 
                 val_iou_sum += val_iou_batch
 
                 metrics_calculator.update_counter(
-                    masks_val, corrected_masks_val # outputs_val не шум
+                    masks_val, outputs_val # corrected_masks_val шум
                 )  # advanced_metrics=True)
 
                 # val_image_visualizer.visualize(images_val, masks_val, outputs_val, class_names_dict, colors, epoch)
@@ -628,12 +637,12 @@ if __name__ == "__main__":
     print(device)
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
 
-    model = smp.FPN(
-        encoder_name="efficientnet-b7",
-        encoder_weights="imagenet",
-        in_channels=1 + num_classes, # +num_classes для диффузии 
-        classes=num_classes
-    )
+    # model = smp.FPN(
+    #     encoder_name="efficientnet-b7",
+    #     encoder_weights="imagenet",
+    #     in_channels=1 + num_classes, # +num_classes для диффузии 
+    #     classes=num_classes
+    # )
 
     # # segformer
     # config = SegformerConfig.from_pretrained(
@@ -678,31 +687,33 @@ if __name__ == "__main__":
     # print("model", model)
 
     # пробую florence-2, пишет что cuda должна быть версии 11.6 и выше, у нас 11.5
-    # model_id = 'microsoft/Florence-2-large'
-    # model = AutoModelForCausalLM.from_pretrained(model_id, trust_remote_code=True)
-    # processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
+    model_id = 'microsoft/Florence-2-large'
+    model = AutoModelForCausalLM.from_pretrained(model_id, trust_remote_code=True)
+    processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
 
-    # # эти две строки для инференса потом 
-    # # task_prompt = '<REFERRING_EXPRESSION_SEGMENTATION>'
-    # # run_example(task_prompt, image) тут image надо давать 
+    # эти две строки для инференса потом 
+    # task_prompt = '<REFERRING_EXPRESSION_SEGMENTATION>'
+    # run_example(task_prompt, image) тут image надо давать 
     
-    # # Пример настройки модели для одноканальных изображений
-    # class FlorenceSegmentationModel(nn.Module):
-    #     def __init__(self, model):
-    #         super(FlorenceSegmentationModel, self).__init__()
-    #         self.model = model
+    # Пример настройки модели для одноканальных изображений
+    class FlorenceSegmentationModel(nn.Module):
+        def __init__(self, model):
+            super(FlorenceSegmentationModel, self).__init__()
+            self.model = model
 
-    #     def forward(self, x):
-    #         # Преобразование одноканального изображения в трехканальное
-    #         x = x.repeat(1, 3, 1, 1)
-    #         outputs = self.model(pixel_values=x)
+        def forward(self, x, input_ids=None, decoder_input_ids=None, decoder_inputs_embeds=None):
+            print("x shape", x.shape)
+            # Преобразование одноканального изображения в трехканальное
+            x = x.repeat(1, 3, 1, 1)
+            input_ids = torch.randint(0, 100, (1, 10)).to(device)
+            outputs = self.model(pixel_values=x, input_ids=input_ids, decoder_input_ids=decoder_input_ids, decoder_inputs_embeds=decoder_inputs_embeds)
 
-    #         # print("Type of outputs:", type(outputs))
-    #         # print("Keys in outputs:", outputs.keys())
-    #         # print("outputs.logits shape", outputs.logits.shape)
-    #         return outputs.logits
+            # print("Type of outputs:", type(outputs))
+            # print("Keys in outputs:", outputs.keys())
+            print("outputs.logits shape", outputs.logits.shape)
+            return outputs.logits
 
-    # model = FlorenceSegmentationModel(model).to(device)
+    model = FlorenceSegmentationModel(model).to(device)
     
 
     learning_rate = 3e-4
@@ -714,7 +725,7 @@ if __name__ == "__main__":
     use_class_weight = True
     use_pixel_weight = True
     use_pixel_opt = False
-    power = "2.23_sinusite_weak"
+    power = "2.11_sinusite_weak"
 
     exp_setup = ExperimentSetup(
         train_loader, total_train, pixel_total_train, batch_size, num_classes
@@ -729,27 +740,26 @@ if __name__ == "__main__":
         use_class_weight, use_pixel_weight, use_pixel_opt, power
     )
 
-    # train_model(
-    #     model,
-    #     optimizer,
-    #     criterion,
-    #     lr_sched,
-    #     num_epochs,
-    #     train_loader,
-    #     val_loader,
-    #     device,
-    #     num_classes,
-    #     experiment_name,
-    #     all_class_weights=all_class_weights,
-    #     alpha=pixel_all_class_weights,
-    #     use_opt_pixel_weight=use_pixel_opt,
-    #     num_cyclic_steps=0,
-    #     max_n=3,
-    #     max_k=3,
-    #     use_augmentation=False,
-    # )
+    train_model(
+        model,
+        optimizer,
+        criterion,
+        lr_sched,
+        num_epochs,
+        train_loader,
+        val_loader,
+        device,
+        num_classes,
+        experiment_name,
+        all_class_weights=all_class_weights,
+        alpha=pixel_all_class_weights,
+        use_opt_pixel_weight=use_pixel_opt,
+        num_cyclic_steps=0,
+        max_n=3,
+        max_k=3,
+        use_augmentation=True,
+    )
 
-    # это картинки нарисует предсказанные
 
     model_weight = f"sinusite_best_models/best_{experiment_name}_model.pth"
     
@@ -759,15 +769,15 @@ if __name__ == "__main__":
     limited_train_loader = itertools.islice(train_loader, 6)
     limited_val_loader = itertools.islice(val_loader, 6)
 
-    avg_loss = test_model(
-        model,
-        model_weight,
-        criterion,
-        train_loader,# limited_train_loader,
-        train_predict_path,
-        val_loader, #limited_val_loader,
-        val_predict_path,
-        device,
-        num_classes,
-        num_images_to_draw=36
-    )
+    # avg_loss = test_model(
+    #     model,
+    #     model_weight,
+    #     criterion,
+    #     train_loader,# limited_train_loader,
+    #     train_predict_path,
+    #     val_loader, #limited_val_loader,
+    #     val_predict_path,
+    #     device,
+    #     num_classes,
+    #     num_images_to_draw=36
+    # )
