@@ -7,6 +7,7 @@ from img_visualizer import ImageVisualizer
 from metrics import DetectionMetrics
 from utils import save_best_metrics_to_csv
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 
@@ -103,8 +104,7 @@ def old_diffusion_inference(model, image, num_classes, device, num_iterations=10
     final_mask = noisy_mask
     return final_mask
 
-def predict(net, image, num_classes, draw_class, val_predict_path, device, img_index):
-    
+def predict(net, image, masks, num_classes, draw_class, val_predict_path, device, img_index):
     combined = torch.empty(1,
                            image.size(0) + num_classes,
                            image.size(1),
@@ -128,8 +128,9 @@ def predict(net, image, num_classes, draw_class, val_predict_path, device, img_i
                 
                 net_out = net(combined)
                 # print("net_out", net_out)
+                # outputs = torch.sigmoid(net_out) 
+                # combined[:,1:,:, :] = outputs
                 outputs = torch.tanh(net_out) # Прямой проход
-                # print("outputs", outputs)
                 combined[:,1:,:, :] = ((combined[:,1:,:, :] - outputs + 1)/3.0)
                 # print(i+j, combined[0, 1].max(), combined[0, 2].max())
                 
@@ -146,6 +147,42 @@ def predict(net, image, num_classes, draw_class, val_predict_path, device, img_i
     print("savefig", fig_filename)
     plt.close(fig) 
     
+    # Сохранение оригинального изображения
+    # orig_image_filename = f"{val_predict_path}/original_image_{img_index}.jpg"
+    # plt.imsave(orig_image_filename, image.cpu().squeeze().numpy())
+    # print("Original image saved:", orig_image_filename)
+    
+    
+    # Сохранение оригинального изображения с наложенными масками
+    image_np = image.cpu().squeeze().numpy()
+    if image_np.ndim == 2:
+        image_np = np.stack([image_np] * 3, axis=-1)  # Grayscale to RGB
+    elif image_np.shape[0] == 3:
+        image_np = np.transpose(image_np, (1, 2, 0))  # CHW to HWC
+
+    image_np = (image_np * 255).astype(np.uint8)
+    image_gray = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
+    image_gray = cv2.cvtColor(image_gray, cv2.COLOR_GRAY2BGR)
+
+    masks_np = masks.detach().cpu().numpy()
+    true_image_with_contours = image_gray.copy()
+
+    # Только для заданного класса
+    mask = masks_np[draw_class].astype(int).astype(np.uint8)
+    mask[mask > 0] = 1
+    color = (0, 0, 255)  # Красный цвет для контуров
+    contours, _ = cv2.findContours(
+        mask,
+        cv2.RETR_TREE,
+        cv2.CHAIN_APPROX_SIMPLE,
+    )
+    true_image_with_contours = cv2.drawContours(
+        true_image_with_contours, contours, -1, color, 2
+    )
+
+    orig_image_filename = f"{val_predict_path}/original_image_{img_index}_with_masks.jpg"
+    cv2.imwrite(orig_image_filename, true_image_with_contours)
+    print("Original image with masks saved:", orig_image_filename)
   
 
 
@@ -339,7 +376,7 @@ def test_model(
     while img_index < num_images_to_draw:
         for result in val_loader:
             images, masks = result["images"].to(device, dtype=torch.float32), result["masks"][:, 1:, :, :].to(device, dtype=torch.float32)
-            predict(model, images[0], 2, 1, val_predict_path, device, img_index)
+            predict(model, images[0], masks[0], 2, 1, val_predict_path, device, img_index)
             img_index += 1
             if img_index >= num_images_to_draw:
                 break

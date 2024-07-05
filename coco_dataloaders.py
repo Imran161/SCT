@@ -11,6 +11,27 @@ from coco_classes import (
     SCT_out_classes,
 )
 
+from transformers import (
+    AutoImageProcessor,
+    AutoModelForCausalLM,
+    AutoModelForImageSegmentation,
+    AutoProcessor,
+    SegformerConfig,
+    SegformerFeatureExtractor,
+    SegformerForSemanticSegmentation,
+)
+import torch
+
+model_id = 'microsoft/Florence-2-large'
+model = AutoModelForCausalLM.from_pretrained(model_id, trust_remote_code=True)
+processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
+    
+def collate_fn(batch):
+    task_prompts, images, masks = zip(*batch)
+    images = [image.repeat(3, 1, 1) if image.shape[0] == 1 else image for image in images]  # Repeat channel if grayscale
+    inputs = processor(text=list(task_prompts), images=list(images), return_tensors="pt", padding=True, do_rescale=False)#.to(device)
+    labels = torch.stack(masks)#.to(device)
+    return inputs, labels
 
 # в новом моем json неправильные маски
 class SINUSITE_COCODataLoader:
@@ -75,10 +96,12 @@ class SINUSITE_COCODataLoader:
         concat_val_data = ConcatDataset(all_val_data)
 
         train_loader = DataLoader(
-            concat_train_data, batch_size=batch_size, shuffle=True, num_workers=4
+            concat_train_data, batch_size=batch_size, shuffle=True, num_workers=4, 
+            # collate_fn=collate_fn
         )
         val_loader = DataLoader(
-            concat_val_data, batch_size=batch_size, shuffle=False, num_workers=4
+            concat_val_data, batch_size=batch_size, shuffle=False, num_workers=4,
+            # collate_fn=collate_fn
         )
 
         return (

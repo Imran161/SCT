@@ -263,8 +263,18 @@ def train_model(
         ) as pbar:
             for batch_idx, train_batch in enumerate(train_loader):
                 optimizer.zero_grad()
-                images = train_batch["images"].to(device)
-                masks = train_batch["masks"][:, 1:, :, :].to(device)
+                
+                images, masks = train_batch
+                # print("masks 0", masks[0][2]) тут по ходу не фон нулевой, там не только единицы
+                masks = masks[:, 1:, :, :].to(device)
+                # Используем только пиксельные значения
+                pixel_values = images["pixel_values"].to(device)
+                input_ids = images["input_ids"].to(device)
+                print("input_ids shape", input_ids.shape)
+                # print("pixel_values", pixel_values)
+            
+                # images = train_batch["images"].to(device)
+                # masks = train_batch["masks"][:, 1:, :, :].to(device)
                 
                 
                 # unique_values = torch.unique(masks)
@@ -295,10 +305,13 @@ def train_model(
                 # # outputs = (combined[:,1:,:, :] - outputs + 1) / 3.0
                 # loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
 
-                outputs = model(images)
+                # не шум 
+                # outputs = model(images)
+                outputs = model(pixel_values=images)
                 outputs = torch.sigmoid(outputs)
                 loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
-                
+
+            
                 loss.backward()
                 optimizer.step()
                 train_loss_sum += loss.item()
@@ -616,15 +629,15 @@ if __name__ == "__main__":
         list_of_name_out_classes,
     ) = coco_dataloader.make_dataloaders(batch_size=batch_size, train_val_ratio=0.8)
 
-    for train_batch in train_loader:
-        images = train_batch["images"]
-        masks = train_batch["masks"][:, 1:, :, :]
-        # print("masks", masks.shape) torch.Size([6, 2, 1024, 1024])
-        for i in range(len(images)):
-            coco_dataloader.show_image_with_mask(
-                images[i][0].cpu().numpy(), masks[i].cpu().numpy(), i
-            )
-        break  # Display only the first batch
+    # for train_batch in train_loader:
+    #     images = train_batch["images"]
+    #     masks = train_batch["masks"][:, 1:, :, :]
+    #     # print("masks", masks.shape) torch.Size([6, 2, 1024, 1024])
+    #     for i in range(len(images)):
+    #         coco_dataloader.show_image_with_mask(
+    #             images[i][0].cpu().numpy(), masks[i].cpu().numpy(), i
+    #         )
+    #     break  # Display only the first batch
 
     print("total_train", total_train)
     print("len total_train", len(total_train))
@@ -637,12 +650,12 @@ if __name__ == "__main__":
     print(device)
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
 
-    # model = smp.FPN(
-    #     encoder_name="efficientnet-b7",
-    #     encoder_weights="imagenet",
-    #     in_channels=1 + num_classes, # +num_classes для диффузии 
-    #     classes=num_classes
-    # )
+    model = smp.FPN(
+        encoder_name="efficientnet-b7",
+        encoder_weights="imagenet",
+        in_channels=1 + num_classes, # +num_classes для диффузии 
+        classes=num_classes
+    )
 
     # # segformer
     # config = SegformerConfig.from_pretrained(
@@ -687,34 +700,42 @@ if __name__ == "__main__":
     # print("model", model)
 
     # пробую florence-2, пишет что cuda должна быть версии 11.6 и выше, у нас 11.5
-    model_id = 'microsoft/Florence-2-large'
-    model = AutoModelForCausalLM.from_pretrained(model_id, trust_remote_code=True)
-    processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
-
-    # эти две строки для инференса потом 
-    # task_prompt = '<REFERRING_EXPRESSION_SEGMENTATION>'
-    # run_example(task_prompt, image) тут image надо давать 
+    # model_id = 'microsoft/Florence-2-large'
+    # model = AutoModelForCausalLM.from_pretrained(model_id, trust_remote_code=True)
+    # processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
     
-    # Пример настройки модели для одноканальных изображений
-    class FlorenceSegmentationModel(nn.Module):
-        def __init__(self, model):
-            super(FlorenceSegmentationModel, self).__init__()
-            self.model = model
+    # # Пример настройки модели для одноканальных изображений
+    # class FlorenceSegmentationModel(nn.Module):
+    #     def __init__(self, model):
+    #         super(FlorenceSegmentationModel, self).__init__()
+    #         self.model = model
 
-        def forward(self, x, input_ids=None, decoder_input_ids=None, decoder_inputs_embeds=None):
-            print("x shape", x.shape)
-            # Преобразование одноканального изображения в трехканальное
-            x = x.repeat(1, 3, 1, 1)
-            input_ids = torch.randint(0, 100, (1, 10)).to(device)
-            outputs = self.model(pixel_values=x, input_ids=input_ids, decoder_input_ids=decoder_input_ids, decoder_inputs_embeds=decoder_inputs_embeds)
+    #     def forward(self, x, input_ids=None, decoder_input_ids=None, decoder_inputs_embeds=None):
+    #         print("x shape", x.shape)
+    #         # Преобразование одноканального изображения в трехканальное
+    #         x = x.repeat(1, 3, 1, 1)
+    #         # input_ids = torch.randint(0, 100, (x.size(0), 1025)).to(device)
+    #         input_ids = torch.randint(0, 100, (1, 10)).to(device)
+    #         print("input_ids shape", input_ids.shape)
+    #         outputs = self.model(pixel_values=x, input_ids=input_ids, decoder_input_ids=decoder_input_ids, decoder_inputs_embeds=decoder_inputs_embeds)
 
-            # print("Type of outputs:", type(outputs))
-            # print("Keys in outputs:", outputs.keys())
-            print("outputs.logits shape", outputs.logits.shape)
-            return outputs.logits
+    #         # # print("Type of outputs:", type(outputs))
+    #         # # print("Keys in outputs:", outputs.keys())
+    #         # print("outputs.logits shape", outputs.logits.shape)
+    #         # return outputs.logits
 
-    model = FlorenceSegmentationModel(model).to(device)
-    
+    #         print("Type of outputs:", type(outputs))
+    #         print("Keys in outputs:", outputs.keys())
+    #         if 'logits' in outputs:
+    #             print("outputs.logits shape", outputs.logits.shape)
+    #         if 'image_features' in outputs:
+    #             print("outputs.image_features shape", outputs.image_features.shape)
+    #         if 'task_prefix_embeds' in outputs:
+    #             print("outputs.task_prefix_embeds shape", outputs.task_prefix_embeds.shape)
+    #         return outputs
+
+    # model = FlorenceSegmentationModel(model).to(device)
+
 
     learning_rate = 3e-4
     num_epochs = 120
@@ -725,7 +746,7 @@ if __name__ == "__main__":
     use_class_weight = True
     use_pixel_weight = True
     use_pixel_opt = False
-    power = "2.11_sinusite_weak"
+    power = "2.25_sinusite_weak"
 
     exp_setup = ExperimentSetup(
         train_loader, total_train, pixel_total_train, batch_size, num_classes
@@ -740,25 +761,25 @@ if __name__ == "__main__":
         use_class_weight, use_pixel_weight, use_pixel_opt, power
     )
 
-    train_model(
-        model,
-        optimizer,
-        criterion,
-        lr_sched,
-        num_epochs,
-        train_loader,
-        val_loader,
-        device,
-        num_classes,
-        experiment_name,
-        all_class_weights=all_class_weights,
-        alpha=pixel_all_class_weights,
-        use_opt_pixel_weight=use_pixel_opt,
-        num_cyclic_steps=0,
-        max_n=3,
-        max_k=3,
-        use_augmentation=True,
-    )
+    # train_model(
+    #     model,
+    #     optimizer,
+    #     criterion,
+    #     lr_sched,
+    #     num_epochs,
+    #     train_loader,
+    #     val_loader,
+    #     device,
+    #     num_classes,
+    #     experiment_name,
+    #     all_class_weights=all_class_weights,
+    #     alpha=pixel_all_class_weights,
+    #     use_opt_pixel_weight=use_pixel_opt,
+    #     num_cyclic_steps=0,
+    #     max_n=3,
+    #     max_k=3,
+    #     use_augmentation=False,
+    # )
 
 
     model_weight = f"sinusite_best_models/best_{experiment_name}_model.pth"
@@ -769,15 +790,15 @@ if __name__ == "__main__":
     limited_train_loader = itertools.islice(train_loader, 6)
     limited_val_loader = itertools.islice(val_loader, 6)
 
-    # avg_loss = test_model(
-    #     model,
-    #     model_weight,
-    #     criterion,
-    #     train_loader,# limited_train_loader,
-    #     train_predict_path,
-    #     val_loader, #limited_val_loader,
-    #     val_predict_path,
-    #     device,
-    #     num_classes,
-    #     num_images_to_draw=36
-    # )
+    avg_loss = test_model(
+        model,
+        model_weight,
+        criterion,
+        train_loader,# limited_train_loader,
+        train_predict_path,
+        val_loader, #limited_val_loader,
+        val_predict_path,
+        device,
+        num_classes,
+        num_images_to_draw=36
+    )
