@@ -8,7 +8,8 @@ from metrics import DetectionMetrics
 from utils import save_best_metrics_to_csv
 import matplotlib.pyplot as plt
 import numpy as np
-
+from torchvision import transforms
+# from transforms import SegTransform
 
 
 def min_max_normalize(tensor):
@@ -104,6 +105,30 @@ def old_diffusion_inference(model, image, num_classes, device, num_iterations=10
     final_mask = noisy_mask
     return final_mask
 
+class SegTransform:
+    def __init__(self):
+        colorJitter = transforms.ColorJitter(
+            brightness=0.6, contrast=0.6, saturation=0.6, hue=0.5
+        )
+        rotater = transforms.RandomRotation(degrees=(0, 180))
+        inverter = transforms.RandomInvert(p=0.5)
+
+        self.input_transform = transforms.Compose([colorJitter, inverter])
+        self.transform = transforms.Compose([rotater])
+
+    def apply_transform(self, img, true_masks):
+        if not isinstance(img, torch.Tensor) or not isinstance(true_masks, torch.Tensor):
+            raise TypeError("Both img and true_masks should be torch.Tensor")
+
+        img = self.input_transform(img)
+        image_and_true_masks = torch.cat((img, true_masks), dim=0)
+        image_and_true_masks = self.transform(image_and_true_masks)
+
+        aug_image = image_and_true_masks[0, :, :]
+        true_masks = image_and_true_masks[1:, :, :].contiguous()
+        aug_image = torch.unsqueeze(aug_image, 0).contiguous()
+        return aug_image.contiguous(), true_masks
+    
 def predict(net, image, masks, num_classes, draw_class, val_predict_path, device, img_index):
     combined = torch.empty(1,
                            image.size(0) + num_classes,
@@ -111,6 +136,10 @@ def predict(net, image, masks, num_classes, draw_class, val_predict_path, device
                            image.size(2),
                            device=device)
 
+    # трансформы 
+    seg_transform = SegTransform()
+    image, masks = seg_transform.apply_transform(image, masks)
+    
     noise = torch.rand(num_classes, image.size(1), image.size(2), device=device)
     combined[0] = torch.cat([image, noise], dim=0)#*0 ##################################### нули сделал
     
@@ -120,6 +149,8 @@ def predict(net, image, masks, num_classes, draw_class, val_predict_path, device
     # noisy_path = "noisy_masks"
     # if not os.path.exists(noisy_path):
     #     os.makedirs(noisy_path)
+    
+    
     
     with torch.no_grad():
         fig, axs = plt.subplots(3, 3, figsize=(10, 10))

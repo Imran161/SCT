@@ -264,17 +264,17 @@ def train_model(
             for batch_idx, train_batch in enumerate(train_loader):
                 optimizer.zero_grad()
                 
-                images, masks = train_batch
-                # print("masks 0", masks[0][2]) тут по ходу не фон нулевой, там не только единицы
-                masks = masks[:, 1:, :, :].to(device)
+                # images, masks = train_batch
+                # # print("masks 0", masks[0][2]) тут по ходу не фон нулевой, там не только единицы
+                # masks = masks[:, 1:, :, :].to(device)
                 # Используем только пиксельные значения
-                pixel_values = images["pixel_values"].to(device)
-                input_ids = images["input_ids"].to(device)
-                print("input_ids shape", input_ids.shape)
+                # pixel_values = images["pixel_values"].to(device)
+                # input_ids = images["input_ids"].to(device)
+                # print("input_ids shape", input_ids.shape)
                 # print("pixel_values", pixel_values)
             
-                # images = train_batch["images"].to(device)
-                # masks = train_batch["masks"][:, 1:, :, :].to(device)
+                images = train_batch["images"].to(device)
+                masks = train_batch["masks"][:, 1:, :, :].to(device)
                 
                 
                 # unique_values = torch.unique(masks)
@@ -287,9 +287,9 @@ def train_model(
                     # save_images(images, masks, epoch, batch_idx, save_dir="transforms")
 
                 # шум
-                # # шум к маске
-                # k_values = np.arange(0, 10.1, 0.1) 
-                # combined = add_noise_and_combine(images, masks, epoch, num_epochs, k_values, batch_idx, num_batches)
+                # шум к маске
+                k_values = np.arange(0, 10.1, 0.1) 
+                combined = add_noise_and_combine(images, masks, epoch, num_epochs, k_values, batch_idx, num_batches)
         
                 if all_class_weights is not None:
                     all_weights_no_fon = [x[1:] for x in all_class_weights]
@@ -297,19 +297,19 @@ def train_model(
                     all_weights_no_fon = None
 
                 # шум
-                # outputs = model(combined) # 2 канала на выходе 3 на входе (num_classes + 1)              
-                # # outputs = torch.tanh(outputs) 
+                outputs = model(combined) # 2 канала на выходе 3 на входе (num_classes + 1)              
+                outputs = torch.tanh(outputs) 
                 # outputs = torch.sigmoid(outputs) 
                 
-                # # Вычитаем предсказанный шум из исходного изображения
-                # # outputs = (combined[:,1:,:, :] - outputs + 1) / 3.0
-                # loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
+                # Вычитаем предсказанный шум из исходного изображения
+                outputs = (combined[:,1:,:, :] - outputs + 1) / 3.0
+                loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
 
                 # не шум 
                 # outputs = model(images)
-                outputs = model(pixel_values=images)
-                outputs = torch.sigmoid(outputs)
-                loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
+                # outputs = model(pixel_values=images)
+                # outputs = torch.sigmoid(outputs)
+                # loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
 
             
                 loss.backward()
@@ -381,36 +381,36 @@ def train_model(
         with torch.no_grad():
             for val_batch in val_loader:
                 images_val = val_batch["images"].to(device)
-                masks_val = val_batch["masks"][:, 1:].to(device)#.float() # float() для шума добавил
+                masks_val = val_batch["masks"][:, 1:].to(device).float() # float() для шума добавил
 
                 # шум
-                # noise_val = torch.rand_like(masks_val).to(device)
-                # combined_val = torch.cat((images_val, noise_val), dim=1)
+                noise_val = torch.rand_like(masks_val).to(device)
+                combined_val = torch.cat((images_val, noise_val), dim=1)
                 
-                # outputs_val = model(combined_val)
-                # # outputs_val = torch.tanh(outputs_val)
+                outputs_val = model(combined_val)
+                outputs_val = torch.tanh(outputs_val)
                 # outputs_val = torch.sigmoid(outputs_val)
-                # corrected_masks_val = outputs_val
-                # # corrected_masks_val = (combined_val[:, 1:, :, :] - outputs_val + 1) / 3
-                # # # Циклический процесс для предсказаний
-                # # # сделать ноль этого цикла, на тесте сделаем цикл
-                # # # for _ in range(num_cyclic_steps):
-                # # #     outputs_val = model(images_val)
-                # # #     outputs_val = torch.sigmoid(outputs_val)
-                # val_loss_sum += criterion(corrected_masks_val, masks_val, None, None).item()
-                # val_iou_batch = iou_metric(corrected_masks_val, masks_val, num_classes)
+                corrected_masks_val = outputs_val
+                corrected_masks_val = (combined_val[:, 1:, :, :] - outputs_val + 1) / 3
+                # # Циклический процесс для предсказаний
+                # # сделать ноль этого цикла, на тесте сделаем цикл
+                # # for _ in range(num_cyclic_steps):
+                # #     outputs_val = model(images_val)
+                # #     outputs_val = torch.sigmoid(outputs_val)
+                val_loss_sum += criterion(corrected_masks_val, masks_val, None, None).item()
+                val_iou_batch = iou_metric(corrected_masks_val, masks_val, num_classes)
                 
                 
                 # не шум
-                outputs_val = model(images_val)
-                outputs_val = torch.sigmoid(outputs_val)
-                val_loss_sum += criterion(outputs_val, masks_val, None, None).item()
-                val_iou_batch = iou_metric(outputs_val, masks_val, num_classes)
+                # outputs_val = model(images_val)
+                # outputs_val = torch.sigmoid(outputs_val)
+                # val_loss_sum += criterion(outputs_val, masks_val, None, None).item()
+                # val_iou_batch = iou_metric(outputs_val, masks_val, num_classes)
                 
                 val_iou_sum += val_iou_batch
 
                 metrics_calculator.update_counter(
-                    masks_val, outputs_val # corrected_masks_val шум
+                    masks_val, corrected_masks_val #outputs_val не шум
                 )  # advanced_metrics=True)
 
                 # val_image_visualizer.visualize(images_val, masks_val, outputs_val, class_names_dict, colors, epoch)
@@ -646,7 +646,7 @@ if __name__ == "__main__":
     print("len val_loader", len(val_loader))
     print("len train_loader", len(train_loader))
 
-    device = torch.device("cuda:0")
+    device = torch.device("cuda:1")
     print(device)
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
 
@@ -738,7 +738,7 @@ if __name__ == "__main__":
 
 
     learning_rate = 3e-4
-    num_epochs = 120
+    num_epochs = 1200
 
     optimizer = Adam(model.parameters(), lr=learning_rate)
     lr_sched = None
@@ -761,25 +761,25 @@ if __name__ == "__main__":
         use_class_weight, use_pixel_weight, use_pixel_opt, power
     )
 
-    # train_model(
-    #     model,
-    #     optimizer,
-    #     criterion,
-    #     lr_sched,
-    #     num_epochs,
-    #     train_loader,
-    #     val_loader,
-    #     device,
-    #     num_classes,
-    #     experiment_name,
-    #     all_class_weights=all_class_weights,
-    #     alpha=pixel_all_class_weights,
-    #     use_opt_pixel_weight=use_pixel_opt,
-    #     num_cyclic_steps=0,
-    #     max_n=3,
-    #     max_k=3,
-    #     use_augmentation=False,
-    # )
+    train_model(
+        model,
+        optimizer,
+        criterion,
+        lr_sched,
+        num_epochs,
+        train_loader,
+        val_loader,
+        device,
+        num_classes,
+        experiment_name,
+        all_class_weights=all_class_weights,
+        alpha=pixel_all_class_weights,
+        use_opt_pixel_weight=use_pixel_opt,
+        num_cyclic_steps=0,
+        max_n=3,
+        max_k=3,
+        use_augmentation=True,
+    )
 
 
     model_weight = f"sinusite_best_models/best_{experiment_name}_model.pth"
@@ -790,15 +790,15 @@ if __name__ == "__main__":
     limited_train_loader = itertools.islice(train_loader, 6)
     limited_val_loader = itertools.islice(val_loader, 6)
 
-    avg_loss = test_model(
-        model,
-        model_weight,
-        criterion,
-        train_loader,# limited_train_loader,
-        train_predict_path,
-        val_loader, #limited_val_loader,
-        val_predict_path,
-        device,
-        num_classes,
-        num_images_to_draw=36
-    )
+    # avg_loss = test_model(
+    #     model,
+    #     model_weight,
+    #     criterion,
+    #     train_loader,# limited_train_loader,
+    #     train_predict_path,
+    #     val_loader, #limited_val_loader,
+    #     val_predict_path,
+    #     device,
+    #     num_classes,
+    #     num_images_to_draw=36
+    # )
