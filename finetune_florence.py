@@ -37,14 +37,13 @@ from peft import LoraConfig, get_peft_model
 import supervision as sv
 import base64
 from PIL import Image
-from IPython.display import display, HTML
 
 
 set_seed(64)
 
 CHECKPOINT = "microsoft/Florence-2-base-ft"
 REVISION = "refs/pr/6"
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("cuda:0")
 
 model = AutoModelForCausalLM.from_pretrained(
     CHECKPOINT, trust_remote_code=True, revision=REVISION
@@ -134,13 +133,22 @@ def render_inference_results(model, data_loader, output_path: str, max_count: in
             if count >= max_count:
                 break
 
-            inputs, targets = batch  # to(DEVICE) надо наверное
+            inputs, targets = batch
+            # print("batch keys", batch[0].keys())
+            # print("inputs type", type(inputs))
+            # print("inputs", inputs)
+            # inputs = {k: v.to(DEVICE) for k, v in inputs.items()} 
+            # targets = {k: v.to(DEVICE) for k, v in inputs.items()} 
+            
             generated_ids = model.generate(
-                input_ids=inputs["input_ids"],
-                pixel_values=inputs["pixel_values"],
+                input_ids=inputs["input_ids"].to(DEVICE),
+                pixel_values=inputs["pixel_values"].to(DEVICE),
                 max_new_tokens=1024,
                 num_beams=3,
             )
+
+            # print(type(inputs["pixel_values"]))
+            # print(inputs["pixel_values"].size())
 
             generated_text = processor.batch_decode(
                 generated_ids, skip_special_tokens=False
@@ -149,15 +157,17 @@ def render_inference_results(model, data_loader, output_path: str, max_count: in
                 processor.post_process_generation(
                     text,
                     task="<REFERRING_EXPRESSION_SEGMENTATION>",
-                    image_size=img.size,
+                    image_size=(img.size(-2), img.size(-1)),
                 )
                 for text, img in zip(generated_text, inputs["pixel_values"])
             ]
 
+            print("answers[0]", answers[0])
+            
             # Сохраняем изображения с масками
             save_images_with_masks(
                 inputs["pixel_values"],
-                [answer["masks"] for answer in answers],
+                [answer["<REFERRING_EXPRESSION_SEGMENTATION>"]['polygons'] for answer in answers],
                 output_path,
                 count,
             )

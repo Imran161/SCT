@@ -42,6 +42,8 @@ def collate_fn(batch):
     segmentations = [item["segmentations"] for item in batch]
     task_prompts = [item["task_prompt"] for item in batch]
 
+    images = [image.repeat(3, 1, 1) if image.shape[0] == 1 else image for image in images]
+
     inputs = processor(
         text=task_prompts, images=images, return_tensors="pt", padding=True
     )  # .to(DEVICE)
