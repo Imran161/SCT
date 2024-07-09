@@ -33,6 +33,7 @@ from utils import ExperimentSetup, iou_metric, save_best_metrics_to_csv, set_see
 
 set_seed(64)
 
+
 def get_direct_subdirectories(directory):
     subdirectories = [
         d for d in os.listdir(directory) if os.path.isdir(os.path.join(directory, d))
@@ -57,18 +58,23 @@ def custom_collate_fn(batch):
 def add_noise_to_mask(mask, max_m=3, max_n=3):
     mask = mask.float()  # Преобразуем маску к типу float
     noise = torch.rand_like(mask)  # Генерируем равномерный шум на [0, 1]
-    m = torch.randint(0, max_m + 1, (1,)).item()  # Генерируем целое число от 1 до max_m включительно
-    n = torch.randint(0, max_n + 1, (1,)).item()  # Генерируем целое число от 0 до max_n включительно
-    
+    m = torch.randint(
+        0, max_m + 1, (1,)
+    ).item()  # Генерируем целое число от 1 до max_m включительно
+    n = torch.randint(
+        0, max_n + 1, (1,)
+    ).item()  # Генерируем целое число от 0 до max_n включительно
+
     if m == 0 and n == 0:
         if torch.rand(1) < 0.5:  # С вероятностью 50% выбираем между m и n
             m = torch.randint(1, max_m + 1, (1,)).item()
         else:
             n = torch.randint(1, max_n + 1, (1,)).item()
-    
+
     SMOOTH = 1e-8
     noisy_mask = (m * mask + n * noise) / (m + n + SMOOTH)
     return noisy_mask
+
 
 def add_noise(images, masks, x):
     # images размера [batch_size, num_channels, height, width]
@@ -77,11 +83,13 @@ def add_noise(images, masks, x):
     num_channels = images.shape[1]
 
     # Создаем пустой тензор для склеенных данных
-    combined = torch.empty(batch_size, num_channels + num_masks, height, width, device=images.device)
+    combined = torch.empty(
+        batch_size, num_channels + num_masks, height, width, device=images.device
+    )
 
     for i in range(batch_size):
         noise = torch.rand(num_masks, height, width, device=images.device)
-#         X = torch.rand(1, device=images.device)
+        #         X = torch.rand(1, device=images.device)
         noisy_masks = noise
         noisy_masks = x * masks[i] + (1 - x) * noise
         combined[i] = torch.cat([images[i], noisy_masks], dim=0)
@@ -96,9 +104,10 @@ def min_max_normalize(tensor):
     return normalized_tensor
 
 
-def add_noise_and_combine(images, masks, epoch, num_epochs, k_values, batch_idx, num_batches):
+def add_noise_and_combine(
+    images, masks, epoch, num_epochs, k_values, batch_idx, num_batches
+):
     with torch.no_grad():
-
         batch_size, num_masks, height, width = masks.shape
         num_channels = images.shape[1]
 
@@ -106,7 +115,7 @@ def add_noise_and_combine(images, masks, epoch, num_epochs, k_values, batch_idx,
         # for k in k_values:
         #     # Создаем пустой тензор для склеенных данных
         #     combined = torch.empty(batch_size, num_channels + num_masks, height, width, device=images.device)
-            
+
         #     # Определяем уровень шума
         #     noise_level = epoch / num_epochs
         #     num_noisy_masks = int(batch_size * (0.5 + 0.4 * noise_level))
@@ -115,16 +124,15 @@ def add_noise_and_combine(images, masks, epoch, num_epochs, k_values, batch_idx,
         #         # Создаем гауссовский шум и клэмпим его
         #         # noise = torch.randn(num_masks, height, width, device=images.device)
         #         noise = torch.normal(0, k, size=(num_masks, height, width), device=images.device)
-                
-                
+
         #         # Определяем, будет ли маска сильно зашумлена или нет
         #         if i < num_noisy_masks:
-        #             noisy_masks = (masks[i] + noise).clamp(0, 1) # torch.clamp(masks[i] + noise, 0, 1) 
+        #             noisy_masks = (masks[i] + noise).clamp(0, 1) # torch.clamp(masks[i] + noise, 0, 1)
         #         else:
         #             noisy_masks = masks[i]
-            
+
         #         combined[i] = torch.cat([images[i], noisy_masks], dim=0)
-                
+
         #     combined_np = combined[0][1].cpu().numpy()
         #     # print("combined.shape", combined.shape)
         #     img_combined = (combined_np * 255).astype(np.uint8)
@@ -132,9 +140,8 @@ def add_noise_and_combine(images, masks, epoch, num_epochs, k_values, batch_idx,
         #     filename = f"{output_dir}/combined_k{k}.jpg"
         #     cv2.imwrite(filename, img_combined)
         #     print(f"Saved {filename}")
-        
-        
-      # Определяем значение k в зависимости от текущей эпохи и индекса батча
+
+        # Определяем значение k в зависимости от текущей эпохи и индекса батча
         if epoch == 0:
             if batch_idx < num_batches / 2:
                 k = 8
@@ -145,26 +152,35 @@ def add_noise_and_combine(images, masks, epoch, num_epochs, k_values, batch_idx,
             if batch_idx < num_batches * percent:
                 k = 8
             else:
-                k = 8 + (batch_idx - num_batches * percent) / (num_batches * (1 - percent)) * 8
-            
+                k = (
+                    8
+                    + (batch_idx - num_batches * percent)
+                    / (num_batches * (1 - percent))
+                    * 8
+                )
+
         # Создаем пустой тензор для склеенных данных
-        combined = torch.empty(batch_size, num_channels + num_masks, height, width, device=images.device)
+        combined = torch.empty(
+            batch_size, num_channels + num_masks, height, width, device=images.device
+        )
         num_noisy_masks = int(batch_size * (0.5 + 0.4 * (epoch / num_epochs)))
 
         for i in range(batch_size):
             # Создаем гауссовский шум с заданным стандартным отклонением k
-            noise = torch.normal(0, k, size=(num_masks, height, width), device=images.device)
-            
+            noise = torch.normal(
+                0, k, size=(num_masks, height, width), device=images.device
+            )
+
             # Определяем, будет ли маска сильно зашумлена или нет
             if i < num_noisy_masks:
                 noisy_masks = (masks[i] + noise).clamp(0, 1)
             else:
                 noisy_masks = masks[i]
-            
+
             combined[i] = torch.cat([images[i], noisy_masks], dim=0)
-        
-    return combined.clone() 
-       
+
+    return combined.clone()
+
 
 def save_images(images, noisy_masks, epoch, batch_idx, save_dir="noisy_masks"):
     path = f"{save_dir}/{epoch}/{batch_idx}"
@@ -181,7 +197,6 @@ def save_images(images, noisy_masks, epoch, batch_idx, save_dir="noisy_masks"):
     #     cv2.imwrite(os.path.join(path, f"epoch_{epoch+1}_batch_{batch_idx}_img_{i+1}.jpg"), img)
     #     cv2.imwrite(os.path.join(path, f"epoch_{epoch+1}_batch_{batch_idx}_mask0_{i+1}.jpg"), mask_0)
     #     cv2.imwrite(os.path.join(path, f"epoch_{epoch+1}_batch_{batch_idx}_mask1_{i+1}.jpg"), mask_1)
-    
 
     for i in range(batch_size):
         # Преобразуем изображения и маски к формату (H, W, C) и диапазону [0, 255]
@@ -193,7 +208,11 @@ def save_images(images, noisy_masks, epoch, batch_idx, save_dir="noisy_masks"):
         combined_image = np.hstack((img, mask_0, mask_1))
 
         # Сохраняем комбинированное изображение
-        cv2.imwrite(os.path.join(path, f"epoch_{epoch}_batch_{batch_idx}_img_{i}.jpg"), combined_image)
+        cv2.imwrite(
+            os.path.join(path, f"epoch_{epoch}_batch_{batch_idx}_img_{i}.jpg"),
+            combined_image,
+        )
+
 
 def train_model(
     model,
@@ -239,7 +258,7 @@ def train_model(
 
     if use_augmentation:
         seg_transform = SegTransform()
-    
+
     num_batches = len(train_loader)
 
     for epoch in range(num_epochs):
@@ -263,7 +282,7 @@ def train_model(
         ) as pbar:
             for batch_idx, train_batch in enumerate(train_loader):
                 optimizer.zero_grad()
-                
+
                 # images, masks = train_batch
                 # # print("masks 0", masks[0][2]) тут по ходу не фон нулевой, там не только единицы
                 # masks = masks[:, 1:, :, :].to(device)
@@ -272,11 +291,10 @@ def train_model(
                 # input_ids = images["input_ids"].to(device)
                 # print("input_ids shape", input_ids.shape)
                 # print("pixel_values", pixel_values)
-            
+
                 images = train_batch["images"].to(device)
                 masks = train_batch["masks"][:, 1:, :, :].to(device)
-                
-                
+
                 # unique_values = torch.unique(masks)
                 # num_unique_values = unique_values.numel()
                 # print("Уникальные значения:", unique_values)
@@ -288,46 +306,50 @@ def train_model(
 
                 # шум
                 # шум к маске
-                k_values = np.arange(0, 10.1, 0.1) 
-                combined = add_noise_and_combine(images, masks, epoch, num_epochs, k_values, batch_idx, num_batches)
-        
+                k_values = np.arange(0, 10.1, 0.1)
+                combined = add_noise_and_combine(
+                    images, masks, epoch, num_epochs, k_values, batch_idx, num_batches
+                )
+
                 if all_class_weights is not None:
                     all_weights_no_fon = [x[1:] for x in all_class_weights]
                 else:
                     all_weights_no_fon = None
 
                 # шум
-                outputs = model(combined) # 2 канала на выходе 3 на входе (num_classes + 1)              
-                outputs = torch.tanh(outputs) 
-                # outputs = torch.sigmoid(outputs) 
-                
+                outputs = model(
+                    combined
+                )  # 2 канала на выходе 3 на входе (num_classes + 1)
+                outputs = torch.tanh(outputs)
+                # outputs = torch.sigmoid(outputs)
+
                 # Вычитаем предсказанный шум из исходного изображения
-                outputs = (combined[:,1:,:, :] - outputs + 1) / 3.0
+                outputs = (combined[:, 1:, :, :] - outputs + 1) / 3.0
                 loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
 
-                # не шум 
+                # не шум
                 # outputs = model(images)
                 # outputs = model(pixel_values=images)
                 # outputs = torch.sigmoid(outputs)
                 # loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
 
-            
                 loss.backward()
                 optimizer.step()
                 train_loss_sum += loss.item()
-                
+
                 # Сохранение изображений и масок
                 # save_images(images, combined[:, 1:, :, :], epoch, batch_idx)
 
                 # шум
                 # train_iou_batch = iou_metric(outputs, masks, num_classes)
-                # не шум 
+                # не шум
                 train_iou_batch = iou_metric(outputs, masks, num_classes)
                 train_iou_sum += train_iou_batch
 
                 # для трейна метрики тоже посчитаю
                 metrics_calculator.update_counter(
-                    masks, outputs # outputs не шум
+                    masks,
+                    outputs,  # outputs не шум
                 )  # , advanced_metrics=True)
 
                 # скользящее среднее
@@ -381,12 +403,14 @@ def train_model(
         with torch.no_grad():
             for val_batch in val_loader:
                 images_val = val_batch["images"].to(device)
-                masks_val = val_batch["masks"][:, 1:].to(device).float() # float() для шума добавил
+                masks_val = (
+                    val_batch["masks"][:, 1:].to(device).float()
+                )  # float() для шума добавил
 
                 # шум
                 noise_val = torch.rand_like(masks_val).to(device)
                 combined_val = torch.cat((images_val, noise_val), dim=1)
-                
+
                 outputs_val = model(combined_val)
                 outputs_val = torch.tanh(outputs_val)
                 # outputs_val = torch.sigmoid(outputs_val)
@@ -397,20 +421,22 @@ def train_model(
                 # # for _ in range(num_cyclic_steps):
                 # #     outputs_val = model(images_val)
                 # #     outputs_val = torch.sigmoid(outputs_val)
-                val_loss_sum += criterion(corrected_masks_val, masks_val, None, None).item()
+                val_loss_sum += criterion(
+                    corrected_masks_val, masks_val, None, None
+                ).item()
                 val_iou_batch = iou_metric(corrected_masks_val, masks_val, num_classes)
-                
-                
+
                 # не шум
                 # outputs_val = model(images_val)
                 # outputs_val = torch.sigmoid(outputs_val)
                 # val_loss_sum += criterion(outputs_val, masks_val, None, None).item()
                 # val_iou_batch = iou_metric(outputs_val, masks_val, num_classes)
-                
+
                 val_iou_sum += val_iou_batch
 
                 metrics_calculator.update_counter(
-                    masks_val, corrected_masks_val #outputs_val не шум
+                    masks_val,
+                    corrected_masks_val,  # outputs_val не шум
                 )  # advanced_metrics=True)
 
                 # val_image_visualizer.visualize(images_val, masks_val, outputs_val, class_names_dict, colors, epoch)
@@ -454,7 +480,7 @@ def train_model(
 
         writer.add_scalar("Loss/train", train_loss_avg, epoch)
         writer.add_scalar("Loss/validation", val_loss_avg, epoch)
- 
+
         # тут сохранение лучшей модели
         if val_loss_avg < best_loss:
             best_loss = val_loss_avg
@@ -577,30 +603,6 @@ class Weight_opt_class:
         return pixel_all_class_weights
 
 
-def run_example(task_prompt, image, text_input=None):
-    if text_input is None:
-        prompt = task_prompt
-    else:
-        prompt = task_prompt + text_input
-    inputs = processor(text=prompt, images=image, return_tensors="pt")
-    generated_ids = model.generate(
-      input_ids=inputs["input_ids"].cuda(),
-      pixel_values=inputs["pixel_values"].cuda(),
-      max_new_tokens=1024,
-      early_stopping=False,
-      do_sample=False,
-      num_beams=3,
-    )
-    generated_text = processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
-    parsed_answer = processor.post_process_generation(
-        generated_text, 
-        task=task_prompt, 
-        image_size=(image.width, image.height)
-    )
-
-    return parsed_answer
-
-
 if __name__ == "__main__":
     # path = "/home/imran-nasyrov/sinusite_json_data"
     # subdirectories_list = get_direct_subdirectories(path)
@@ -653,8 +655,8 @@ if __name__ == "__main__":
     model = smp.FPN(
         encoder_name="efficientnet-b7",
         encoder_weights="imagenet",
-        in_channels=1 + num_classes, # +num_classes для диффузии 
-        classes=num_classes
+        in_channels=1 + num_classes,  # +num_classes для диффузии
+        classes=num_classes,
     )
 
     # # segformer
@@ -703,7 +705,7 @@ if __name__ == "__main__":
     # model_id = 'microsoft/Florence-2-large'
     # model = AutoModelForCausalLM.from_pretrained(model_id, trust_remote_code=True)
     # processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
-    
+
     # # Пример настройки модели для одноканальных изображений
     # class FlorenceSegmentationModel(nn.Module):
     #     def __init__(self, model):
@@ -735,7 +737,6 @@ if __name__ == "__main__":
     #         return outputs
 
     # model = FlorenceSegmentationModel(model).to(device)
-
 
     learning_rate = 3e-4
     num_epochs = 1200
@@ -781,9 +782,8 @@ if __name__ == "__main__":
         use_augmentation=True,
     )
 
-
     model_weight = f"sinusite_best_models/best_{experiment_name}_model.pth"
-    
+
     val_predict_path = f"diff_predict_sinusite/predict_{experiment_name}/val"
     train_predict_path = f"diff_predict_sinusite/predict_{experiment_name}/train"
 

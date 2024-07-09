@@ -315,6 +315,75 @@ class JsonHandler:
         mask = maskUtils.decode(rle)
         return class_idx, mask
 
+    # так было ниже сделаю для флоренции
+    # def __getitem__(self, idx, contours=False):
+    #     img_info = self.coco.loadImgs(idx)[0]
+    #     image = self.load_image(idx)
+    #     gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    #
+    #     anns = self.load_annotations(idx)
+    #     image_height = img_info["height"]
+    #     image_width = img_info["width"]
+    #
+    #     mask = np.zeros(
+    #         (len(self.catIDs) - len(self.delete_list) + 1, image_height, image_width)
+    #     )
+    #
+    #     for ann in anns:
+    #         if ann["category_id"] not in self.delete_list:
+    #             class_idx, mask_instance = self.process_mask(
+    #                 ann, image_height, image_width
+    #             )
+    #             mask_instance = np.squeeze(mask_instance)
+    #             mask[class_idx] = np.maximum(mask[class_idx], mask_instance)
+    #
+    #     mask = self.to_out_classes(mask)
+    #
+    #     if self.resize and not contours:
+    #         image = torch.unsqueeze(torch.tensor(gray_image), 0)
+    #         image = torchvision.transforms.functional.resize(
+    #             image, self.resize, antialias=True
+    #         )
+    #         mask = torchvision.transforms.functional.resize(
+    #             torch.tensor(mask), self.resize, antialias=True
+    #         )
+    #
+    #         if not self.dataloader:
+    #             image = torch.unsqueeze(image, 0)
+    #             image = (image - image.min()) / (image.max() - image.min() + 1e-7)
+    #             mask = torch.unsqueeze(mask, 0)
+    #             rgb_image = cv2.resize(image.numpy().squeeze(), self.resize)
+    #             return image.float(), mask.long(), rgb_image
+    #
+    #         image = (image - image.min()) / (image.max() - image.min() + 1e-7)
+    #
+    #         task_prompt = "<REFERRING_EXPRESSION_SEGMENTATION>"
+    #
+    #         result = {
+    #             "images": image.float(),
+    #             "masks": mask.long(),
+    #             "labels": torch.amax(mask, dim=(-1, -2)),
+    #             "values": torch.sum(mask, (-1, -2)),
+    #             "task_prompt": task_prompt,
+    #         }
+    #
+    #         # было так, но для флоренции меняю
+    #         return result
+    #
+    #         # task_prompt = "<REFERRING_EXPRESSION_SEGMENTATION>"
+    #         # return task_prompt, image.float(), mask.long()
+    #
+    #         # image, annotation = self.dataset[idx]
+    #         # bbox = annotation["bbox"]
+    #         # category_id = annotation["category_id"]
+    #         # segmentation = annotation["segmentation"]
+    #         # return image, bbox, category_id, segmentation
+    #
+    #     else:
+    #         return gray_image, mask
+    #
+
+    # florence
     def __getitem__(self, idx, contours=False):
         img_info = self.coco.loadImgs(idx)[0]
         image = self.load_image(idx)
@@ -328,6 +397,10 @@ class JsonHandler:
             (len(self.catIDs) - len(self.delete_list) + 1, image_height, image_width)
         )
 
+        bboxes = []
+        category_ids = []
+        segmentations = []
+
         for ann in anns:
             if ann["category_id"] not in self.delete_list:
                 class_idx, mask_instance = self.process_mask(
@@ -335,6 +408,10 @@ class JsonHandler:
                 )
                 mask_instance = np.squeeze(mask_instance)
                 mask[class_idx] = np.maximum(mask[class_idx], mask_instance)
+
+                bboxes.append(ann["bbox"])
+                category_ids.append(ann["category_id"])
+                segmentations.append(ann["segmentation"])
 
         mask = self.to_out_classes(mask)
 
@@ -355,23 +432,31 @@ class JsonHandler:
                 return image.float(), mask.long(), rgb_image
 
             image = (image - image.min()) / (image.max() - image.min() + 1e-7)
-            
+
             task_prompt = "<REFERRING_EXPRESSION_SEGMENTATION>"
-            
+
             result = {
                 "images": image.float(),
                 "masks": mask.long(),
                 "labels": torch.amax(mask, dim=(-1, -2)),
                 "values": torch.sum(mask, (-1, -2)),
-                "task_prompt": task_prompt
+                "task_prompt": task_prompt,
+                "bboxes": bboxes,
+                "category_ids": category_ids,
+                "segmentations": segmentations,
             }
-            
+
             # было так, но для флоренции меняю
-            return result 
+            return result
 
             # task_prompt = "<REFERRING_EXPRESSION_SEGMENTATION>"
-            
             # return task_prompt, image.float(), mask.long()
-            
+
+            # image, annotation = self.dataset[idx]
+            # bbox = annotation["bbox"]
+            # category_id = annotation["category_id"]
+            # segmentation = annotation["segmentation"]
+            # return image, bbox, category_id, segmentation
+
         else:
             return gray_image, mask
