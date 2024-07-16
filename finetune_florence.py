@@ -1,21 +1,19 @@
-import os
-import io
+import base64
 import json
-from PIL import Image
-from typing import List, Dict, Any, Tuple
-from torch.utils.data import Dataset
-import itertools
 import os
-import warnings
+import random
+from typing import Any, Dict, List, Tuple
 
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-import segmentation_models_pytorch as smp
+import supervision as sv
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.optim import Adam
+from peft import LoraConfig, get_peft_model
+from PIL import Image, ImageDraw, ImageFont
+from torch.optim import Adam, AdamW
+from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 from transformers import (
     AutoImageProcessor,
@@ -25,53 +23,48 @@ from transformers import (
     SegformerConfig,
     SegformerFeatureExtractor,
     SegformerForSemanticSegmentation,
+    get_scheduler,
 )
 
 from coco_classes import sinusite_base_classes, sinusite_pat_classes_3
-from coco_dataloaders import SINUSITE_COCODataLoader, FLORENCE_COCODataLoader
+from coco_dataloaders import FLORENCE_COCODataLoader, SINUSITE_COCODataLoader
 from metrics import DetectionMetrics
 from sct_val import test_model
 from transforms import SegTransform
 from utils import ExperimentSetup, iou_metric, save_best_metrics_to_csv, set_seed
-from peft import LoraConfig, get_peft_model
-import supervision as sv
-import base64
-from PIL import Image
-from PIL import Image, ImageDraw, ImageFont
-import random
-import matplotlib.pyplot as plt
-from transformers import AutoProcessor, get_scheduler
-from torch.optim import AdamW
-from typing import List, Dict, Any, Tuple
-from torch.utils.data import Dataset, DataLoader
-
 
 set_seed(64)
 
 
 class COCOToJSONLConverter:
-    def __init__(self, json_params, list_of_name_out_classes, output_dir):
+    def __init__(self, json_params, output_dir):
         self.json_params = json_params
-        self.list_of_name_out_classes = list_of_name_out_classes
         self.output_dir = output_dir
         self.coco_dataloader = FLORENCE_COCODataLoader(json_params)
 
-    def convert(self, split='train', output_filename='annotations.jsonl'):
-        data_loader, _, _, _, _ = self.coco_dataloader.make_dataloaders(batch_size=1, train_val_ratio=0.8)
+    def convert(self, split="train", output_filename="annotations.jsonl"):
+        (
+            train_loader,
+            val_loader,
+            _,
+            _,
+            list_of_name_out_classes,
+        ) = self.coco_dataloader.make_dataloaders(batch_size=1, train_val_ratio=0.8)
+        data_loader = train_loader if split == "train" else val_loader
         jsonl_data = []
 
         for batch in data_loader:
-            jsonl_batch = self.collate_fn(batch)
+            jsonl_batch = self.collate_fn(batch, list_of_name_out_classes)
             jsonl_data.extend(jsonl_batch)
 
         output_path = os.path.join(self.output_dir, split, output_filename)
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             for entry in jsonl_data:
-                f.write(json.dumps(entry) + '\n')
+                f.write(json.dumps(entry) + "\n")
 
-    def collate_fn(self, batch):
+    def collate_fn(self, batch, list_of_name_out_classes):
         jsonl_data = []
 
         for item in batch:
@@ -84,20 +77,17 @@ class COCOToJSONLConverter:
             suffix_parts = []
 
             for category_id, bbox in zip(category_ids, bboxes):
-                class_name = self.list_of_name_out_classes[category_id]
+                class_name = list_of_name_out_classes[category_id]
                 loc_strs = [f"<loc_{int(coord)}>" for coord in bbox]
                 suffix_parts.append(f"{class_name}{''.join(loc_strs)}")
 
             suffix = "".join(suffix_parts)
 
-            jsonl_data.append({
-                "image": image_file,
-                "prefix": prefix,
-                "suffix": suffix
-            })
+            jsonl_data.append({"image": image_file, "prefix": prefix, "suffix": suffix})
 
         return jsonl_data
-    
+
+
 class JSONLDataset:
     def __init__(self, jsonl_file_path: str, image_directory_path: str):
         self.jsonl_file_path = jsonl_file_path
@@ -106,7 +96,7 @@ class JSONLDataset:
 
     def _load_entries(self) -> List[Dict[str, Any]]:
         entries = []
-        with open(self.jsonl_file_path, 'r') as file:
+        with open(self.jsonl_file_path, "r") as file:
             for line in file:
                 data = json.loads(line)
                 entries.append(data)
@@ -120,7 +110,7 @@ class JSONLDataset:
             raise IndexError("Index out of range")
 
         entry = self.entries[idx]
-        image_path = os.path.join(self.image_directory_path, entry['image'])
+        image_path = os.path.join(self.image_directory_path, entry["image"])
         try:
             image = Image.open(image_path)
             return (image, entry)
@@ -137,10 +127,10 @@ class DetectionDataset(Dataset):
 
     def __getitem__(self, idx):
         image, data = self.dataset[idx]
-        prefix = data['prefix']
-        suffix = data['suffix']
+        prefix = data["prefix"]
+        suffix = data["suffix"]
         return prefix, suffix, image
-    
+
 
 CHECKPOINT = "microsoft/Florence-2-base-ft"
 REVISION = "refs/pr/6"
@@ -158,31 +148,19 @@ processor.image_processor.do_rescale = False
 
 BATCH_SIZE = 6
 NUM_CLASSES = 2
+NUM_WORKERS = 4
 
 
 def collate_fn(batch):
     questions, answers, images = zip(*batch)
-    inputs = processor(text=list(questions), images=list(images), return_tensors="pt", padding=True).to(DEVICE)
+    inputs = processor(
+        text=list(questions), images=list(images), return_tensors="pt", padding=True
+    ).to(DEVICE)
     return inputs, answers
 
+
 # Путь к выходному каталогу JSONL
-output_dir = 'sinusite_jsonl'
-converter = COCOToJSONLConverter(params, list_of_name_out_classes, output_dir)
-converter.convert(split='train')
-converter.convert(split='valid')
-
-# Инициализация датасетов и загрузчиков
-train_dataset = DetectionDataset(
-    jsonl_file_path = os.path.join(output_dir, 'train', 'annotations.jsonl'),
-    image_directory_path = os.path.join(output_dir, 'train')
-)
-val_dataset = DetectionDataset(
-    jsonl_file_path = os.path.join(output_dir, 'valid', 'annotations.jsonl'),
-    image_directory_path = os.path.join(output_dir, 'valid')
-)
-
-train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, collate_fn=collate_fn, num_workers=NUM_WORKERS, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, collate_fn=collate_fn, num_workers=NUM_WORKERS)
+output_dir = "sinusite_jsonl"
 
 params = {
     "json_file_path": "/home/imran-nasyrov/sinusite_json_data",
@@ -195,15 +173,44 @@ params = {
     "delete_null": False,
 }
 
-coco_dataloader = FLORENCE_COCODataLoader(params)
 
-(
-    train_loader,
-    val_loader,
-    total_train,
-    pixel_total_train,
-    list_of_name_out_classes,
-) = coco_dataloader.make_dataloaders(batch_size=BATCH_SIZE, train_val_ratio=0.8)
+# Создание экземпляра конвертера и преобразование данных
+converter = COCOToJSONLConverter(params, output_dir)
+converter.convert(split="train")
+converter.convert(split="valid")
+
+# Инициализация датасетов и загрузчиков
+train_dataset = DetectionDataset(
+    jsonl_file_path=os.path.join(output_dir, "train", "annotations.jsonl"),
+    image_directory_path=os.path.join(output_dir, "train"),
+)
+val_dataset = DetectionDataset(
+    jsonl_file_path=os.path.join(output_dir, "valid", "annotations.jsonl"),
+    image_directory_path=os.path.join(output_dir, "valid"),
+)
+
+train_loader = DataLoader(
+    train_dataset,
+    batch_size=BATCH_SIZE,
+    collate_fn=collate_fn,
+    num_workers=NUM_WORKERS,
+    shuffle=True,
+)
+val_loader = DataLoader(
+    val_dataset, batch_size=BATCH_SIZE, collate_fn=collate_fn, num_workers=NUM_WORKERS
+)
+
+
+# у меня так было
+# coco_dataloader = FLORENCE_COCODataLoader(params)
+#
+# (
+#     train_loader,
+#     val_loader,
+#     total_train,
+#     pixel_total_train,
+#     list_of_name_out_classes,
+# ) = coco_dataloader.make_dataloaders(batch_size=BATCH_SIZE, train_val_ratio=0.8)
 
 
 config = LoraConfig(
@@ -247,19 +254,18 @@ def draw_polygons(image, prediction, fill_mask=False, save_path=None):
 
     draw = ImageDraw.Draw(image)
 
-
     # Set up scale factor if needed (use 1 if not scaling)
     scale = 1
 
     # Iterate over polygons and labels
-    for polygons, label in zip(prediction['polygons'], prediction['labels']):
+    for polygons, label in zip(prediction["polygons"], prediction["labels"]):
         color = "red"
         fill_color = "red" if fill_mask else None
 
         for _polygon in polygons:
             _polygon = np.array(_polygon).reshape(-1, 2)
             if len(_polygon) < 3:
-                print('Invalid polygon:', _polygon)
+                print("Invalid polygon:", _polygon)
                 continue
 
             _polygon = (_polygon * scale).reshape(-1).tolist()
@@ -275,7 +281,7 @@ def draw_polygons(image, prediction, fill_mask=False, save_path=None):
 
     if not os.path.exists(save_path):
         os.makedirs(save_path)
-        
+
     image.save(f"{save_path}/img.jpg")
     print(f"Saved image with polygons drawn to: {save_path}")
 
@@ -283,7 +289,7 @@ def draw_polygons(image, prediction, fill_mask=False, save_path=None):
 def save_raw_images(images, output_path, start_index):
     """
     Save raw images from a batch for verification.
-    
+
     Parameters:
     - images: Tensor of images.
     - output_path: Directory to save the images.
@@ -295,18 +301,20 @@ def save_raw_images(images, output_path, start_index):
         # print("image_tensor shape", image_tensor.shape)
         image = (image * 255).astype(np.uint8)
         image = Image.fromarray(image)
-        
+
         image.save(f"{output_path}/raw_image_{start_index + i}.png")
         print(f"Saved raw image to: {output_path}/raw_image_{start_index + i}.png")
 
         # do_rescale=False
+
 
 def min_max_normalize(tensor):
     min_val = tensor.min()
     max_val = tensor.max()
     normalized_tensor = (tensor - min_val) / (max_val - min_val + 1e-8)
     return normalized_tensor
-            
+
+
 def render_inference_results(model, data_loader, output_path: str, max_count: int):
     model.eval()
     count = 0
@@ -316,17 +324,15 @@ def render_inference_results(model, data_loader, output_path: str, max_count: in
                 break
 
             inputs, targets = batch
-            
-            
 
             # проверю сами картинки
             # img = min_max_normalize(inputs["pixel_values"])
             # print("img shape", img.shape)
             # save_raw_images(img, output_path, count)
-            
+
             # print("targets[masks].shape", len(targets["masks"]))
             # save_raw_images(targets["masks"], output_path, count)
-            
+
             generated_ids = model.generate(
                 input_ids=inputs["input_ids"].to(DEVICE),
                 pixel_values=inputs["pixel_values"].to(DEVICE),
@@ -350,8 +356,10 @@ def render_inference_results(model, data_loader, output_path: str, max_count: in
             ]
 
             print("answers[0]", answers[0])
-            
-            for idx, (image_tensor, answer) in enumerate(zip(inputs["pixel_values"], answers)):
+
+            for idx, (image_tensor, answer) in enumerate(
+                zip(inputs["pixel_values"], answers)
+            ):
                 # Преобразуем тензор изображения в PIL Image
                 print("image_tensor shape", image_tensor.shape)
                 image = image_tensor.permute(1, 2, 0).cpu().numpy()
@@ -361,11 +369,11 @@ def render_inference_results(model, data_loader, output_path: str, max_count: in
                 mask = answer["<REFERRING_EXPRESSION_SEGMENTATION>"]
                 # print("mask", mask)
                 draw_polygons(
-                        image,
-                        mask, #answer["<REFERRING_EXPRESSION_SEGMENTATION>"],
-                        fill_mask=True,
-                        save_path=f"{output_path}/annotated_image_{count + idx}.png"
-                    )
+                    image,
+                    mask,  # answer["<REFERRING_EXPRESSION_SEGMENTATION>"],
+                    fill_mask=True,
+                    save_path=f"{output_path}/annotated_image_{count + idx}.png",
+                )
 
                 # save_images_with_masks(
                 #     inputs["pixel_values"],
@@ -381,22 +389,26 @@ output_path = "test_infer_florence"
 
 render_inference_results(peft_model, val_loader, output_path, 4)
 
+
 def polygons_to_mask(polygons, image_size):
     mask = np.zeros(image_size, dtype=np.uint8)
     for polygon in polygons:
         pts = np.array(polygon, dtype=np.int32)
         pts = pts.reshape((-1, 1, 2))
         cv2.fillPoly(mask, [pts], 1)
-    return torch.tensor(mask, dtype=torch.float32)#, requires_grad=True)
+    return torch.tensor(mask, dtype=torch.float32)  # , requires_grad=True)
 
 
 def resize_masks(masks, target_size):
     resized_masks = []
     for mask in masks:
-        resized_mask = cv2.resize(mask.detach().cpu().numpy(), target_size, interpolation=cv2.INTER_NEAREST)
-        resized_masks.append(torch.tensor(resized_mask, dtype=torch.float32).unsqueeze(0))
+        resized_mask = cv2.resize(
+            mask.detach().cpu().numpy(), target_size, interpolation=cv2.INTER_NEAREST
+        )
+        resized_masks.append(
+            torch.tensor(resized_mask, dtype=torch.float32).unsqueeze(0)
+        )
     return torch.cat(resized_masks, dim=0)
-
 
 
 def train_model(train_loader, val_loader, model, processor, epochs=10, lr=1e-6):
@@ -419,11 +431,11 @@ def train_model(train_loader, val_loader, model, processor, epochs=10, lr=1e-6):
 
         with tqdm(total=n, desc=desc, unit="batch") as pbar:
             for batch_idx, (inputs, targets) in enumerate(train_loader):
-            # for inputs, targets in tqdm(train_loader, desc=desc):
+                # for inputs, targets in tqdm(train_loader, desc=desc):
                 input_ids = inputs["input_ids"].to(DEVICE)
                 pixel_values = inputs["pixel_values"].to(DEVICE)
                 target_masks = torch.stack(targets["masks"]).to(DEVICE)
-                
+
                 # Преобразование целевых масок в однослойные и изменение их размера
                 target_masks = target_masks[:, 0, :, :]  # Используем первый канал
                 target_masks = resize_masks(target_masks, (768, 768)).to(DEVICE)
@@ -447,22 +459,27 @@ def train_model(train_loader, val_loader, model, processor, epochs=10, lr=1e-6):
                     )
                     for text, img in zip(generated_text, pixel_values)
                 ]
-                
+
                 pred_masks = [
-                    polygons_to_mask(answer["<REFERRING_EXPRESSION_SEGMENTATION>"]["polygons"], (img.size(-2), img.size(-1)))
+                    polygons_to_mask(
+                        answer["<REFERRING_EXPRESSION_SEGMENTATION>"]["polygons"],
+                        (img.size(-2), img.size(-1)),
+                    )
                     for answer, img in zip(answers, pixel_values)
                 ]
-                
-                pred_masks = resize_masks(pred_masks, (768, 768)).to(DEVICE).requires_grad_()
+
+                pred_masks = (
+                    resize_masks(pred_masks, (768, 768)).to(DEVICE).requires_grad_()
+                )
                 # print("pred_masks", pred_masks)
                 loss = criterion(pred_masks, target_masks)
-                
+
                 loss.backward()
                 optimizer.step()
                 lr_scheduler.step()
 
                 train_loss += loss.item()
-                
+
                 pbar.set_postfix(loss=train_loss / (batch_idx + 1))
                 pbar.update(1)
 
@@ -472,7 +489,9 @@ def train_model(train_loader, val_loader, model, processor, epochs=10, lr=1e-6):
         model.eval()
         val_loss = 0
         with torch.no_grad():
-            for inputs, targets in tqdm(val_loader, desc=f"Validation Epoch {epoch + 1}/{epochs}"):
+            for inputs, targets in tqdm(
+                val_loader, desc=f"Validation Epoch {epoch + 1}/{epochs}"
+            ):
                 input_ids = inputs["input_ids"].to(DEVICE)
                 pixel_values = inputs["pixel_values"].to(DEVICE)
                 target_masks = torch.stack(targets["masks"]).to(DEVICE)
@@ -498,12 +517,15 @@ def train_model(train_loader, val_loader, model, processor, epochs=10, lr=1e-6):
                     )
                     for text, img in zip(generated_text, pixel_values)
                 ]
-                
+
                 pred_masks = [
-                    polygons_to_mask(answer["<REFERRING_EXPRESSION_SEGMENTATION>"]["polygons"], (img.size(-2), img.size(-1)))
+                    polygons_to_mask(
+                        answer["<REFERRING_EXPRESSION_SEGMENTATION>"]["polygons"],
+                        (img.size(-2), img.size(-1)),
+                    )
                     for answer, img in zip(answers, pixel_values)
                 ]
-                
+
                 # Изменение размера предсказанных масок
                 pred_masks = resize_masks(pred_masks, (768, 768)).to(DEVICE)
 
@@ -513,13 +535,15 @@ def train_model(train_loader, val_loader, model, processor, epochs=10, lr=1e-6):
             avg_val_loss = val_loss / len(val_loader)
             print(f"Average Validation Loss: {avg_val_loss}")
 
-            render_inference_results(model, val_loader, f"output_path_epoch_{epoch+1}", 6)
+            render_inference_results(
+                model, val_loader, f"output_path_epoch_{epoch+1}", 6
+            )
 
         output_dir = f"./model_checkpoints/epoch_{epoch+1}"
         os.makedirs(output_dir, exist_ok=True)
         model.save_pretrained(output_dir)
         processor.save_pretrained(output_dir)
-        
+
 
 criterion = nn.CrossEntropyLoss()
 # train_model(train_loader, val_loader, model, processor, epochs=10, lr=1e-6)
