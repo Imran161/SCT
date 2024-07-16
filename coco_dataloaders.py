@@ -124,14 +124,14 @@ class FLORENCE_COCODataLoader:
             batch_size=batch_size,
             shuffle=True,
             num_workers=4,
-            collate_fn=collate_fn,
+            # collate_fn=collate_fn,
         )
         val_loader = DataLoader(
             concat_val_data,
             batch_size=batch_size,
             shuffle=False,
             num_workers=4,
-            collate_fn=collate_fn,
+            # collate_fn=collate_fn,
         )
 
         return (

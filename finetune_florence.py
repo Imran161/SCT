@@ -42,9 +42,105 @@ import random
 import matplotlib.pyplot as plt
 from transformers import AutoProcessor, get_scheduler
 from torch.optim import AdamW
+from typing import List, Dict, Any, Tuple
+from torch.utils.data import Dataset, DataLoader
 
 
 set_seed(64)
+
+
+class COCOToJSONLConverter:
+    def __init__(self, json_params, list_of_name_out_classes, output_dir):
+        self.json_params = json_params
+        self.list_of_name_out_classes = list_of_name_out_classes
+        self.output_dir = output_dir
+        self.coco_dataloader = FLORENCE_COCODataLoader(json_params)
+
+    def convert(self, split='train', output_filename='annotations.jsonl'):
+        data_loader, _, _, _, _ = self.coco_dataloader.make_dataloaders(batch_size=1, train_val_ratio=0.8)
+        jsonl_data = []
+
+        for batch in data_loader:
+            jsonl_batch = self.collate_fn(batch)
+            jsonl_data.extend(jsonl_batch)
+
+        output_path = os.path.join(self.output_dir, split, output_filename)
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+        with open(output_path, 'w') as f:
+            for entry in jsonl_data:
+                f.write(json.dumps(entry) + '\n')
+
+    def collate_fn(self, batch):
+        jsonl_data = []
+
+        for item in batch:
+            image_id = item["image_id"]
+            image_file = item["image_file"]
+            category_ids = item["category_ids"]
+            bboxes = item["bboxes"]
+
+            prefix = "<OD>"
+            suffix_parts = []
+
+            for category_id, bbox in zip(category_ids, bboxes):
+                class_name = self.list_of_name_out_classes[category_id]
+                loc_strs = [f"<loc_{int(coord)}>" for coord in bbox]
+                suffix_parts.append(f"{class_name}{''.join(loc_strs)}")
+
+            suffix = "".join(suffix_parts)
+
+            jsonl_data.append({
+                "image": image_file,
+                "prefix": prefix,
+                "suffix": suffix
+            })
+
+        return jsonl_data
+    
+class JSONLDataset:
+    def __init__(self, jsonl_file_path: str, image_directory_path: str):
+        self.jsonl_file_path = jsonl_file_path
+        self.image_directory_path = image_directory_path
+        self.entries = self._load_entries()
+
+    def _load_entries(self) -> List[Dict[str, Any]]:
+        entries = []
+        with open(self.jsonl_file_path, 'r') as file:
+            for line in file:
+                data = json.loads(line)
+                entries.append(data)
+        return entries
+
+    def __len__(self) -> int:
+        return len(self.entries)
+
+    def __getitem__(self, idx: int) -> Tuple[Image.Image, Dict[str, Any]]:
+        if idx < 0 or idx >= len(self.entries):
+            raise IndexError("Index out of range")
+
+        entry = self.entries[idx]
+        image_path = os.path.join(self.image_directory_path, entry['image'])
+        try:
+            image = Image.open(image_path)
+            return (image, entry)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Image file {image_path} not found.")
+
+
+class DetectionDataset(Dataset):
+    def __init__(self, jsonl_file_path: str, image_directory_path: str):
+        self.dataset = JSONLDataset(jsonl_file_path, image_directory_path)
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        image, data = self.dataset[idx]
+        prefix = data['prefix']
+        suffix = data['suffix']
+        return prefix, suffix, image
+    
 
 CHECKPOINT = "microsoft/Florence-2-base-ft"
 REVISION = "refs/pr/6"
@@ -62,6 +158,31 @@ processor.image_processor.do_rescale = False
 
 BATCH_SIZE = 6
 NUM_CLASSES = 2
+
+
+def collate_fn(batch):
+    questions, answers, images = zip(*batch)
+    inputs = processor(text=list(questions), images=list(images), return_tensors="pt", padding=True).to(DEVICE)
+    return inputs, answers
+
+# Путь к выходному каталогу JSONL
+output_dir = 'sinusite_jsonl'
+converter = COCOToJSONLConverter(params, list_of_name_out_classes, output_dir)
+converter.convert(split='train')
+converter.convert(split='valid')
+
+# Инициализация датасетов и загрузчиков
+train_dataset = DetectionDataset(
+    jsonl_file_path = os.path.join(output_dir, 'train', 'annotations.jsonl'),
+    image_directory_path = os.path.join(output_dir, 'train')
+)
+val_dataset = DetectionDataset(
+    jsonl_file_path = os.path.join(output_dir, 'valid', 'annotations.jsonl'),
+    image_directory_path = os.path.join(output_dir, 'valid')
+)
+
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, collate_fn=collate_fn, num_workers=NUM_WORKERS, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, collate_fn=collate_fn, num_workers=NUM_WORKERS)
 
 params = {
     "json_file_path": "/home/imran-nasyrov/sinusite_json_data",
@@ -258,7 +379,7 @@ def render_inference_results(model, data_loader, output_path: str, max_count: in
 # Путь для сохранения аннотированных изображений
 output_path = "test_infer_florence"
 
-# render_inference_results(peft_model, val_loader, output_path, 4)
+render_inference_results(peft_model, val_loader, output_path, 4)
 
 def polygons_to_mask(polygons, image_size):
     mask = np.zeros(image_size, dtype=np.uint8)
@@ -401,4 +522,4 @@ def train_model(train_loader, val_loader, model, processor, epochs=10, lr=1e-6):
         
 
 criterion = nn.CrossEntropyLoss()
-train_model(train_loader, val_loader, model, processor, epochs=10, lr=1e-6)
+# train_model(train_loader, val_loader, model, processor, epochs=10, lr=1e-6)

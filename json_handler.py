@@ -409,7 +409,17 @@ class JsonHandler:
                 mask_instance = np.squeeze(mask_instance)
                 mask[class_idx] = np.maximum(mask[class_idx], mask_instance)
 
-                bboxes.append(ann["bbox"])
+                # Find bounding box for mask
+                contours, _ = cv2.findContours(mask_instance.astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+                for contour in contours:
+                    x, y, w, h = cv2.boundingRect(contour)
+                    x2 = x + w
+                    y2 = y + h
+                    # Normalize and scale bounding box
+                    box = [x / image_width, y / image_height, x2 / image_width, y2 / image_height]
+                    box = [coord * 1000 for coord in box]
+                    bboxes.append(box)
+
                 category_ids.append(ann["category_id"])
                 segmentations.append(ann["segmentation"])
 
@@ -433,7 +443,7 @@ class JsonHandler:
 
             image = (image - image.min()) / (image.max() - image.min() + 1e-7)
 
-            task_prompt = "<REFERRING_EXPRESSION_SEGMENTATION>"
+            task_prompt = "<OD>"
 
             result = {
                 "images": image.float(),

@@ -325,6 +325,9 @@ class Universal_json_Segmentation_Dataset():
         anns = self.coco.loadAnns(anns_ids)
         # для чего вот эта размерность? len(self.catIDs)-len(self.delete_list)+1 это кол-во классов
         mask = np.zeros((len(self.catIDs)-len(self.delete_list)+1, int(images_description["height"]), int(images_description["width"])))
+        
+        height = int(images_description["height"])
+        width = int(images_description["width"])
         #######
         # print("после np.zeros")
         # values, counts = np.unique(mask, return_counts=True)
@@ -333,6 +336,9 @@ class Universal_json_Segmentation_Dataset():
         #v:0.0, c:1835008
         # print("mask in getitem shape", mask.shape) # (7, 512, 512)
         #######
+        
+        bboxes = []
+        
         for ann in anns:  
             # print("ann", ann)
             # вот эту строку убрал она странная какая-то
@@ -346,6 +352,9 @@ class Universal_json_Segmentation_Dataset():
                 class_mask = self.coco.annToMask(ann)
                 class_idx = self.cats_to_classes[ann["category_id"]]
                 mask[class_idx][class_mask==1]=1
+                
+                bbox = ann["bbox"]
+                bboxes.append(bbox)
                 
         
         mask = self.to_out_classes(mask)
@@ -383,7 +392,10 @@ class Universal_json_Segmentation_Dataset():
             result["masks"] = mask
             result["labels"] = torch.amax(mask, dim=(-1, -2))
             result["values"] = torch.sum(mask, (-1,-2))
+            result["bboxes"] = bboxes
             result["rgb_image"] = rgb_image #########
+            result["height"] = height
+            result["width"] = width
             
             return result
         else:
@@ -894,9 +906,103 @@ def save_to_papki(path, number_papki):
 
 #########################################################################################
 
+
+from coco_classes import sinusite_base_classes, sinusite_pat_classes_3
+
+
+def save_to_papki_OD(path, number_papki):
+    sct_coco = Universal_json_Segmentation_Dataset(json_file_path=path + "/",   
+                                                    delete_list=[], 
+                                                    base_classes=sinusite_base_classes, 
+                                                    out_classes=sinusite_pat_classes_3, 
+                                                    delete_null=False,  # Fasle всегда 
+                                                    resize=(256, 256), 
+                                                    dataloader=True, 
+                                                    recalculate=False  # оставить True
+                                                    )       
+
+    colors = [((251, 206, 177), 'Абрикосовым'), ((127, 255,  212), 'Аквамариновым'), ((255, 36, 0), 'Алым'), ((153, 102, 204), 'Аметистовым'),
+              ((153, 0, 102), 'Баклажановым'), ((48, 213, 200), 'Бирюзовым'), ((152, 251,  152), 'Бледно зеленым'),
+              ((213, 113, 63), 'Ванильным'), ((100, 149,  237), 'Васильковым'), ((34,139,34), 'Зелёный лесной'), ((0,0,255), 'Синий'),
+              ((75,0,130), 'Индиго'), ((255,0,255), 'Чёрный'), ((0,51,  153), 'Маджента'), ((65,105,225), 'Королевский синий'),
+              ((255,255,0), 'Жёлтый'), ((255,69,0), 'Оранжево-красный'), ((255,0,0), 'Темно синим'), ((0,51,  153), 'Красный'),
+              ((255,215,0), 'Золотой'), ((250,128,114), 'Лососевый'), ((255,99,71), 'Томатный'), ((255,215,0), 'Золотой'),
+              ((0,139,139), 'Тёмный циан'), ((0,255,255), 'Морская волна')]
+
+    list_of_name_out_classes = ["GT", "NGC", "F", "LT", "SDL", 
+                                "SDH", "HPM", "HPG", "APL", "APH", 
+                                "TA", "VA", "INL", "INH", "ADCG1", 
+                                "ADCG2", "ADCG3", "MAC", "SRC", "MC", 
+                                "NDC", "NED"]
+
+    for k in sct_coco.all_img_list:                  
+        result = sct_coco[k] 
+        image = result["images"]
+        label = result["labels"]
+        label = label[1:]
+        if sum(label) == 1:
+            if label.max().item() != 0:
+                clas = label.argmax().item() + 1
+                mask = result["masks"]
+                rgb_image = image#result["rgb_image"]
+                # print("rgb_image shape", rgb_image.shape)
+                # print("image shape", image.shape)
+                
+                # if isinstance(rgb_image, torch.Tensor):
+                rgb_image = rgb_image.squeeze().detach().numpy() #.permute(1, 2, 0)
+                rgb_image = (rgb_image * 255).astype(np.uint8)
+
+                # rgb_image = image.detach().numpy()
+                # rgb_image = cv2.cvtColor(image[0], cv2.COLOR_GRAY2RGB)
+                # rgb_image = torch.squeeze(rgb_image*255)#.detach().numpy()
+                # rgb_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
+                
+                
+                mask = mask.detach().numpy()
+
+                # for i in range(np.shape(mask)[0]):
+                #     color = colors[i % len(colors)][0]
+                    
+                #     contours, _ = cv2.findContours(mask[i].astype(int).astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+                #     rgb_image = cv2.drawContours(rgb_image, contours, -1, (color[0], color[1], color[2]), 2)
+                    
+                #     if np.max(mask[i]) == 1 and i != 0:
+                #         x, y, w, h = cv2.boundingRect(mask[i].astype(int).astype(np.uint8))
+                #         cv2.rectangle(rgb_image, (x, y), (x + w, y + h), color, 2)
+                        
+                #         text = list_of_name_out_classes[i]
+                #         cv2.putText(rgb_image, text, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+
+                for i in range(np.shape(mask)[0]):
+                    contours, _ = cv2.findContours(mask[i].astype(int).astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+                    rgb_image = cv2.drawContours(rgb_image, contours, -1, (colors[i][0][0], colors[i][0][1], colors[i][0][2]), 2)
+
+                    for contour in contours:
+                        x, y, w, h = cv2.boundingRect(contour)
+                        color = colors[i % len(colors)][0]
+                        cv2.rectangle(rgb_image, (x, y), (x + w, y + h), color, 2)
+
+                    if np.max(mask[i]) == 1 and i != 0:
+                        text = list_of_name_out_classes[i] + " " + str(np.max(mask[i]))
+                        cv2.putText(rgb_image, f"label class: {text}", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1, cv2.LINE_AA)
+
+                papki_path = f"/home/imran-nasyrov/output_guts2/{list_of_name_out_classes[clas]}"
+                
+                if not os.path.exists(papki_path):
+                    os.makedirs(papki_path)
+                
+                photo_path = f"{papki_path}/output_image_{number_papki}_{k}.jpg"
+                
+                all_files = get_all_files("/home/imran-nasyrov/output_guts2/" + str(list_of_name_out_classes[clas]))
+                if len(all_files) < 10:
+                    cv2.imwrite(photo_path, rgb_image)
+
+
+
 # Это чисто чтобы одну папку проверить 
 # path = "/home/imran-nasyrov/111303"
-path = "/mnt/netstorage/Medicine/Medical/guts_json_01_07/126"
+# path = "/mnt/netstorage/Medicine/Medical/guts_json_01_07/126"
+path = "/home/imran-nasyrov/sinusite_json_data/task_sinusite_data_29_11_23_1_st_sin_labeling"
     
 
 parts = path.split('/')
@@ -904,4 +1010,5 @@ id_number = parts[-1]
 print("id_number", id_number) # id_number 78
 
 
-save_to_papki(path, id_number) 
+# save_to_papki(path, id_number) 
+save_to_papki_OD(path, id_number)
