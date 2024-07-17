@@ -61,6 +61,22 @@ def extract_class_names(segmentation_file):
 file = "/home/imran/Документы/Innopolis/First_data_test/Проект _Почки_/Проект Почки/готовые 1 часть/Sheremetjev MJu/3D/Segmentation_1.seg.nrrd"
 # class_names = extract_class_names(file)
 # print("class_names", class_names)
+# вроде нашлись все классы
+# class_names[
+#     "right_kidney_ID1",
+#     "right_kidney_upper_segment_ID2",
+#     "right_kidney_middle_segment_ID3",
+#     "right_kidney_lower_segment_ID4",
+#     "left_kidney_ID5",
+#     "left_kidney_upper_segment_ID6",
+#     "left_kidney_middle_segment_ID7",
+#     "left_kidney_lower_segment_ID8",
+#     "malignant_tumor_ID9",
+#     "benign_tumor_ID10",
+#     "cyst_ID11",
+#     "abscess_ID12",
+# ]
+#
 
 
 def read_nrrd_and_save_all_slices(path):
@@ -266,16 +282,18 @@ def read_nrrd_and_save_all_slices_cv2(image_dir, mask_path):
 
     # Считываем все файлы изображений из директории
     for file_name in os.listdir(image_dir):
-        print("file_name", file_name)
-        if file_name.endswith(".nrrd"):
+        if file_name.endswith(".nrrd") and "Segmentation" not in file_name:
             image_path = os.path.join(image_dir, file_name)
+            print("image_path", image_path)
 
             # Чтение основного изображения
             data, header = nrrd.read(image_path)
             image = sitk.GetImageFromArray(data)
 
             # Ресэмплирование маски до размера изображения
+            print("resample")
             resampled_mask = resample_volume(mask, image, sitk.sitkNearestNeighbor)
+            print("ok")
             resampled_mask_data = sitk.GetArrayFromImage(resampled_mask)
 
             print("Максимальное значение в данных:", np.max(data))
@@ -343,5 +361,4 @@ def read_nrrd_and_save_all_slices_cv2(image_dir, mask_path):
 image_dir = "/home/imran/Документы/Innopolis/First_data_test/Проект _Почки_/Проект Почки/готовые 1 часть/Sheremetjev MJu/3D"
 mask_path = image_dir + "/" + "Segmentation_1.seg.nrrd"
 
-# Запуск функции
 read_nrrd_and_save_all_slices_cv2(image_dir, mask_path)
