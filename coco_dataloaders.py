@@ -34,29 +34,6 @@ processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
 #     return inputs, labels
 
 
-def collate_fn(batch):
-    images = [item["images"] for item in batch]
-    masks = [item["masks"] for item in batch]
-    bboxes = [item["bboxes"] for item in batch]
-    category_ids = [item["category_ids"] for item in batch]
-    segmentations = [item["segmentations"] for item in batch]
-    task_prompts = [item["task_prompt"] for item in batch]
-
-    images = [image.repeat(3, 1, 1) if image.shape[0] == 1 else image for image in images]
-
-    inputs = processor(
-        text=task_prompts, images=images, return_tensors="pt", padding=True
-    )  # .to(DEVICE)
-
-    targets = {
-        "masks": masks,
-        "bboxes": bboxes,
-        "category_ids": category_ids,
-        "segmentations": segmentations,
-    }
-
-    return inputs, targets
-
 
 class FLORENCE_COCODataLoader:
     def __init__(self, json_params):
@@ -124,14 +101,14 @@ class FLORENCE_COCODataLoader:
             batch_size=batch_size,
             shuffle=True,
             num_workers=4,
-            # collate_fn=collate_fn,
+            collate_fn=self.collate_fn,
         )
         val_loader = DataLoader(
             concat_val_data,
             batch_size=batch_size,
             shuffle=False,
             num_workers=4,
-            # collate_fn=collate_fn,
+            collate_fn=self.collate_fn,
         )
 
         return (
@@ -141,6 +118,21 @@ class FLORENCE_COCODataLoader:
             pixel_total_train,
             self.list_out_classes,
         )
+        
+    def collate_fn(self, batch):
+        images = [item["images"] for item in batch]
+        image_ids = [item["image_id"] for item in batch]
+        image_files = [item["image_file"] for item in batch]
+        bboxes = [item["bboxes"] for item in batch]
+        category_ids = [item["category_ids"] for item in batch]
+
+        return {
+            "images": images,
+            "image_ids": image_ids,
+            "image_files": image_files,
+            "bboxes": bboxes,
+            "category_ids": category_ids
+        }
 
 
 class SINUSITE_COCODataLoader:

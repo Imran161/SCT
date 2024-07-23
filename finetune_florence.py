@@ -68,7 +68,9 @@ class COCOToJSONLConverter:
         jsonl_data = []
 
         for item in batch:
-            image_id = item["image_id"]
+            print("batch", batch)
+            print("item", item)
+            # image_id = item["image_id"]
             image_file = item["image_file"]
             category_ids = item["category_ids"]
             bboxes = item["bboxes"]

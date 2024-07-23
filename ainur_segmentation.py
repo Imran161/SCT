@@ -298,6 +298,7 @@ class Universal_json_Segmentation_Dataset():
     
     def to_out_classes(self, mask):
         size = np.shape(mask)
+
         new_mask = np.zeros((len(self.out_classes)+1,size[1],size[2]))
         new_mask[0]=1
      
@@ -321,8 +322,12 @@ class Universal_json_Segmentation_Dataset():
         # print("rgb_image", rgb_image.shape)
         gray_image = cv2.cvtColor(rgb_image, cv2.COLOR_BGR2GRAY)
         
+        print("self.catIDs", self.catIDs)
+        print("idx", idx)
         anns_ids = self.coco.getAnnIds(imgIds=idx, catIds=self.catIDs, iscrowd=None)
+        print("anns_ids", anns_ids)
         anns = self.coco.loadAnns(anns_ids)
+        print("anns", anns)
         # для чего вот эта размерность? len(self.catIDs)-len(self.delete_list)+1 это кол-во классов
         mask = np.zeros((len(self.catIDs)-len(self.delete_list)+1, int(images_description["height"]), int(images_description["width"])))
         
@@ -356,7 +361,11 @@ class Universal_json_Segmentation_Dataset():
                 bbox = ann["bbox"]
                 bboxes.append(bbox)
                 
-        
+        # print("до to_out_classes")
+        # values, counts = np.unique(mask, return_counts=True)
+        # for v, c in zip(values, counts):
+        #     print(f"v:{v}, c:{c}")
+            
         mask = self.to_out_classes(mask)
         ########
         # print("после to_out_classes")
@@ -365,7 +374,7 @@ class Universal_json_Segmentation_Dataset():
         #     print(f"v:{v}, c:{c}")
         # v:0.0, c:1310720
         # v:1.0, c:262144
-        ########
+        #######
             
         # print("resize", self.resize)
         # print(contures)
@@ -745,6 +754,16 @@ Ainur_base_classes = [
 
 Ainur_out_classes = Ainur_base_classes
 
+pochki_base_classes = [
+                    # {'id': 0, 'name': '0', "summable_masks":[0], "subtractive_masks":[]}, не згаю надо или нет
+                    {'id': 1, 'name': 'right_kidney_upper_segment_ID2', "summable_masks":[1], "subtractive_masks":[]},
+                    {'id': 2, 'name': 'left_kidney_upper_segment_ID6', "summable_masks":[2], "subtractive_masks":[]},
+                    {'id': 3, 'name': 'left_kidney_middle_segment_ID7', "summable_masks":[3], "subtractive_masks":[]},
+                    {'id': 4, 'name': 'left_kidney_lower_segment_ID8', "summable_masks":[4], "subtractive_masks":[]},
+                    {'id': 5, 'name': 'benign_tumor_ID10', "summable_masks":[5], "subtractive_masks":[]},
+                    {'id': 6, 'name': 'abscess_ID12', "summable_masks":[6], "subtractive_masks":[]},
+                    {'id': 7, 'name': 'cyst_ID11', "summable_masks":[7], "subtractive_masks":[]},
+]
 
 
 def get_direct_subdirectories(directory):
@@ -779,8 +798,8 @@ def save_to_papki(path, number_papki):
     
     sct_coco = Universal_json_Segmentation_Dataset(json_file_path = path + "/",   
                                                         delete_list= [],
-                                                        base_classes=Ainur_base_classes,
-                                                        out_classes=Ainur_base_classes,
+                                                        base_classes=pochki_base_classes,
+                                                        out_classes=pochki_base_classes,
                                                         delete_null=False, # Fasle всегда 
                                                         resize= (256, 256),
                                                         dataloader = True,
@@ -815,6 +834,8 @@ def save_to_papki(path, number_papki):
         image = result["images"]
         label = result["labels"]
         label = label[1:]
+        # print("label", label)
+        # print("label shape", label.shape)
         if sum(label) == 1:
             if label.max().item() != 0:
                 clas = label.argmax().item() + 1
@@ -824,8 +845,8 @@ def save_to_papki(path, number_papki):
             # print(label[1:], label[1:].amax(), label[1:].argmax())
                 mask = result["masks"]
                 rgb_image = result["rgb_image"]
-                # print("rgb_image shape", rgb_image.shape) # (256, 256, 3)
-                # print("mask shape", mask.shape) # torch.Size([25, 256, 256])
+                print("rgb_image shape", rgb_image.shape) # (256, 256, 3)
+                print("mask shape", mask.shape) # torch.Size([25, 256, 256])
                 
                 mask = mask.detach().numpy()
                 
@@ -876,6 +897,7 @@ def save_to_papki(path, number_papki):
                 # print("all_files", all_files)
                 if len(all_files) < 50: # убрать это
                     cv2.imwrite(photo_path, rgb_image)
+                    print(f"file saved to {photo_path}")
         
         
 #########################################################################################
@@ -1002,13 +1024,13 @@ def save_to_papki_OD(path, number_papki):
 # Это чисто чтобы одну папку проверить 
 # path = "/home/imran-nasyrov/111303"
 # path = "/mnt/netstorage/Medicine/Medical/guts_json_01_07/126"
-path = "/home/imran-nasyrov/sinusite_json_data/task_sinusite_data_29_11_23_1_st_sin_labeling"
-    
+# path = "/home/imran-nasyrov/sinusite_json_data/task_sinusite_data_29_11_23_1_st_sin_labeling"
+path = "/home/imran-nasyrov/Zaytseva TI_2 Non Contrast  3.0  I41s  4"
 
 parts = path.split('/')
 id_number = parts[-1]
 print("id_number", id_number) # id_number 78
 
 
-# save_to_papki(path, id_number) 
-save_to_papki_OD(path, id_number)
+save_to_papki(path, id_number) 
+# save_to_papki_OD(path, id_number)

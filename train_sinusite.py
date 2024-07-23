@@ -24,7 +24,7 @@ from transformers import (
     SegformerForSemanticSegmentation,
 )
 
-from coco_classes import sinusite_base_classes, sinusite_pat_classes_3
+from coco_classes import sinusite_base_classes, sinusite_pat_classes_3, kidneys_base_classes, kidneys_out_classes
 from coco_dataloaders import SINUSITE_COCODataLoader
 from metrics import DetectionMetrics
 from sct_val import test_model
@@ -234,7 +234,7 @@ def train_model(
     use_augmentation=False,
 ):
     # Создание объекта SummaryWriter для записи логов
-    writer = SummaryWriter(log_dir=f"runs_sinusite/{experiment_name}_logs")
+    writer = SummaryWriter(log_dir=f"runs_kidneys/{experiment_name}_logs")
     metrics_calculator = DetectionMetrics(mode="ML", num_classes=num_classes)
 
     class_names_dict = {
@@ -306,10 +306,10 @@ def train_model(
 
                 # шум
                 # шум к маске
-                k_values = np.arange(0, 10.1, 0.1)
-                combined = add_noise_and_combine(
-                    images, masks, epoch, num_epochs, k_values, batch_idx, num_batches
-                )
+                # k_values = np.arange(0, 10.1, 0.1)
+                # combined = add_noise_and_combine(
+                #     images, masks, epoch, num_epochs, k_values, batch_idx, num_batches
+                # )
 
                 if all_class_weights is not None:
                     all_weights_no_fon = [x[1:] for x in all_class_weights]
@@ -317,21 +317,21 @@ def train_model(
                     all_weights_no_fon = None
 
                 # шум
-                outputs = model(
-                    combined
-                )  # 2 канала на выходе 3 на входе (num_classes + 1)
-                outputs = torch.tanh(outputs)
+                # outputs = model(
+                #     combined
+                # )  # 2 канала на выходе 3 на входе (num_classes + 1)
+                # outputs = torch.tanh(outputs)
                 # outputs = torch.sigmoid(outputs)
 
                 # Вычитаем предсказанный шум из исходного изображения
-                outputs = (combined[:, 1:, :, :] - outputs + 1) / 3.0
-                loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
+                # outputs = (combined[:, 1:, :, :] - outputs + 1) / 3.0
+                # loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
 
                 # не шум
-                # outputs = model(images)
+                outputs = model(images)
                 # outputs = model(pixel_values=images)
-                # outputs = torch.sigmoid(outputs)
-                # loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
+                outputs = torch.sigmoid(outputs)
+                loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
 
                 loss.backward()
                 optimizer.step()
@@ -404,39 +404,40 @@ def train_model(
             for val_batch in val_loader:
                 images_val = val_batch["images"].to(device)
                 masks_val = (
-                    val_batch["masks"][:, 1:].to(device).float()
+                    val_batch["masks"][:, 1:].to(device)#.float()
                 )  # float() для шума добавил
 
                 # шум
-                noise_val = torch.rand_like(masks_val).to(device)
-                combined_val = torch.cat((images_val, noise_val), dim=1)
+                # noise_val = torch.rand_like(masks_val).to(device)
+                # combined_val = torch.cat((images_val, noise_val), dim=1)
 
-                outputs_val = model(combined_val)
-                outputs_val = torch.tanh(outputs_val)
-                # outputs_val = torch.sigmoid(outputs_val)
-                corrected_masks_val = outputs_val
-                corrected_masks_val = (combined_val[:, 1:, :, :] - outputs_val + 1) / 3
-                # # Циклический процесс для предсказаний
-                # # сделать ноль этого цикла, на тесте сделаем цикл
-                # # for _ in range(num_cyclic_steps):
-                # #     outputs_val = model(images_val)
-                # #     outputs_val = torch.sigmoid(outputs_val)
-                val_loss_sum += criterion(
-                    corrected_masks_val, masks_val, None, None
-                ).item()
-                val_iou_batch = iou_metric(corrected_masks_val, masks_val, num_classes)
+                # outputs_val = model(combined_val)
+                # outputs_val = torch.tanh(outputs_val)
+                # # outputs_val = torch.sigmoid(outputs_val)
+                # corrected_masks_val = outputs_val
+                # corrected_masks_val = (combined_val[:, 1:, :, :] - outputs_val + 1) / 3
+                # # # Циклический процесс для предсказаний
+                # # # сделать ноль этого цикла, на тесте сделаем цикл
+                # # # for _ in range(num_cyclic_steps):
+                # # #     outputs_val = model(images_val)
+                # # #     outputs_val = torch.sigmoid(outputs_val)
+                # val_loss_sum += criterion(
+                #     corrected_masks_val, masks_val, None, None
+                # ).item()
+                # val_iou_batch = iou_metric(corrected_masks_val, masks_val, num_classes)
 
                 # не шум
-                # outputs_val = model(images_val)
-                # outputs_val = torch.sigmoid(outputs_val)
-                # val_loss_sum += criterion(outputs_val, masks_val, None, None).item()
-                # val_iou_batch = iou_metric(outputs_val, masks_val, num_classes)
+                outputs_val = model(images_val)
+                outputs_val = torch.sigmoid(outputs_val)
+                val_loss_sum += criterion(outputs_val, masks_val, None, None).item()
+                val_iou_batch = iou_metric(outputs_val, masks_val, num_classes)
 
                 val_iou_sum += val_iou_batch
 
                 metrics_calculator.update_counter(
                     masks_val,
-                    corrected_masks_val,  # outputs_val не шум
+                    outputs_val # не шум
+                    # corrected_masks_val,  # шум
                 )  # advanced_metrics=True)
 
                 # val_image_visualizer.visualize(images_val, masks_val, outputs_val, class_names_dict, colors, epoch)
@@ -522,7 +523,8 @@ def train_model(
         },
     }
 
-    last_model_path = "sinusite_last_models"
+    # last_model_path = "sinusite_last_models"
+    last_model_path = "kidneys_last_models"
     if not os.path.exists(last_model_path):
         os.makedirs(last_model_path)
 
@@ -610,14 +612,27 @@ if __name__ == "__main__":
     batch_size = 6
     num_classes = 2
 
+    # sinusite
+    # params = {
+    #     "json_file_path": "/home/imran-nasyrov/sinusite_json_data",
+    #     "delete_list": [],
+    #     "base_classes": sinusite_base_classes,
+    #     "out_classes": sinusite_pat_classes_3,
+    #     "dataloader": True,
+    #     "resize": (1024, 1024),
+    #     "recalculate": False,
+    #     "delete_null": False,
+    # }
+    
+    # kidneys
     params = {
-        "json_file_path": "/home/imran-nasyrov/sinusite_json_data",
+        "json_file_path": "/home/imran-nasyrov/json_pochki",
         "delete_list": [],
-        "base_classes": sinusite_base_classes,
-        "out_classes": sinusite_pat_classes_3,
+        "base_classes": kidneys_base_classes,
+        "out_classes": kidneys_out_classes,
         "dataloader": True,
-        "resize": (1024, 1024),
-        "recalculate": False,
+        "resize": (512, 512),
+        "recalculate": True,
         "delete_null": False,
     }
 
@@ -655,7 +670,7 @@ if __name__ == "__main__":
     model = smp.FPN(
         encoder_name="efficientnet-b7",
         encoder_weights="imagenet",
-        in_channels=1 + num_classes,  # +num_classes для диффузии
+        in_channels=1, # + num_classes,  # +num_classes для диффузии
         classes=num_classes,
     )
 
@@ -746,8 +761,8 @@ if __name__ == "__main__":
 
     use_class_weight = True
     use_pixel_weight = True
-    use_pixel_opt = False
-    power = "2.25_sinusite_weak"
+    use_pixel_opt = True
+    power = "1.1_kidneys_weak"
 
     exp_setup = ExperimentSetup(
         train_loader, total_train, pixel_total_train, batch_size, num_classes
@@ -779,7 +794,7 @@ if __name__ == "__main__":
         num_cyclic_steps=0,
         max_n=3,
         max_k=3,
-        use_augmentation=True,
+        use_augmentation=False,
     )
 
     model_weight = f"sinusite_best_models/best_{experiment_name}_model.pth"

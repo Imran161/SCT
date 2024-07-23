@@ -66,3 +66,46 @@ sinusite_pat_classes_3 = [
         "subtractive_masks": [],
     },
 ]
+
+
+kidneys_base_classes = [
+    {"name": "right_kidney_ID1", "id": 1},
+    {"name": "right_kidney_upper_segment_ID2", "id": 2},
+    {"name": "right_kidney_middle_segment_ID3", "id": 3},
+    {"name": "right_kidney_lower_segment_ID4", "id": 4},
+    {"name": "left_kidney_ID5", "id": 5},
+    
+    {"name": "left_kidney_upper_segment_ID6", "id": 6},
+    {"name": "left_kidney_middle_segment_ID7", "id": 7},
+    {"name": "left_kidney_lower_segment_ID8", "id": 8},
+    
+    {"name": "malignant_tumor_ID9", "id": 9},
+    {"name": "benign_tumor_ID10", "id": 10},
+    {"name": "cyst_ID11", "id": 11},
+    {"name": "abscess_ID12", "id": 12}
+]
+
+
+kidneys_out_classes = [
+     {
+        "name": "pathology",
+        "id": 1,
+        "summable_masks": [9,10,11,12],
+        "subtractive_masks": [],
+    },
+    
+    {
+        "name": "right_kidney_ID1",
+        "id": 2,
+        "summable_masks": [1],
+        "subtractive_masks": [],
+    },
+    
+    {
+        "name": "left_kidney_ID5",
+        "id": 3,
+        "summable_masks": [5],
+        "subtractive_masks": [],
+    },
+    
+]

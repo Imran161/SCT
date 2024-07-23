@@ -406,49 +406,6 @@ if __name__ == "__main__":
 
                 all_files = get_all_files(subsub)
 
-                # coco_dataset = {
-                #     "info": {
-                #         "version": "",
-                #         "date_created": "",
-                #         "contributor": "",
-                #         "year": 2024,
-                #         "description": "",
-                #         "url": "",
-                #     },
-                #     "licenses": [{"url": "", "id": 0, "name": ""}],
-                #     "images": [],
-                #     "annotations": [],
-                #     "categories": [
-                #         {"id": 0, "name": "0", "supercategory": ""},
-
-                #         {"id": 1, "name": "GT", "supercategory": ""},
-                #         {"id": 2, "name": "NGC", "supercategory": ""},
-                #         {"id": 3, "name": "F", "supercategory": ""},
-                #         {"id": 4, "name": "LT", "supercategory": ""},
-                #         {"id": 5, "name": "SDL", "supercategory": ""},
-
-                #         {"id": 6, "name": "SDH", "supercategory": ""},
-                #         {"id": 7, "name": "HPM", "supercategory": ""},
-                #         {"id": 8, "name": "HPG", "supercategory": ""},
-                #         {"id": 9, "name": "APL", "supercategory": ""},
-                #         {"id": 10, "name": "APH", "supercategory": ""},
-
-                #         {"id": 11, "name": "TA", "supercategory": ""},
-                #         {"id": 12, "name": "VA", "supercategory": ""},
-                #         {"id": 13, "name": "INL", "supercategory": ""},
-                #         {"id": 14, "name": "INH", "supercategory": ""},
-                #         {"id": 15, "name": "ADCG1", "supercategory": ""},
-
-                #         {"id": 16, "name": "ADCG2", "supercategory": ""},
-                #         {"id": 17, "name": "ADCG3", "supercategory": ""},
-                #         {"id": 18, "name": "MAC", "supercategory": ""},
-                #         {"id": 19, "name": "SRC", "supercategory": ""},
-                #         {"id": 20, "name": "MC", "supercategory": ""},
-
-                #         {"id": 21, "name": "NDC", "supercategory": ""},
-                #         {"id": 22, "name": "NED", "supercategory": ""}
-                #     ]
-                # }
 
                 output_file = f"{folder_path}/instances_default.json"
                 coco_dataset = load_existing_data(output_file)
