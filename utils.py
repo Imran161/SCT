@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 
 from losses import strong_combined_loss, weak_combined_loss
 
+SMOOTH = 1e-8
 
 def set_seed(seed):
     random.seed(seed)
@@ -20,6 +21,7 @@ def set_seed(seed):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.enabled = False
+
 
 def save_best_metrics_to_csv(best_metrics, csv_file):
     # Проверка, существует ли CSV файл
@@ -146,8 +148,8 @@ class ExperimentSetup:
             self.use_cls = "off"
         else:
             count_data = self.batch_size * len(self.train_loader)
-            pos_weights = count_data / (2 * self.TotalTrain)  # ML
-            neg_weights = count_data / (2 * (count_data - self.TotalTrain))
+            pos_weights = count_data / (2 * self.TotalTrain + SMOOTH)  # ML
+            neg_weights = count_data / (2 * (count_data - self.TotalTrain + SMOOTH))
             class_weights = self.TotalTrain[1:].sum() / (
                 self.TotalTrain * self.num_classes
             )  # MC

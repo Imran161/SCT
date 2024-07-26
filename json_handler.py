@@ -309,11 +309,36 @@ class JsonHandler:
         anns = self.coco.loadAnns(anns_ids)
         return anns
 
+    # было так но по ходу это не совсем верно, потому что если у меня segmentation имеет два
+    # подсписка [[], []] то есть есть две области одного класса на фото, то эта функция создаст
+    # картинку не (512, 512) а (512, 512, 2), а это ошибка
+    # def process_mask(self, ann, image_height, image_width):
+    #     class_idx = self.cats_to_classes[ann["category_id"]]
+    #     rle = maskUtils.frPyObjects(ann["segmentation"], image_height, image_width)
+    #     mask = maskUtils.decode(rle)
+    #     return class_idx, mask
+
     def process_mask(self, ann, image_height, image_width):
         class_idx = self.cats_to_classes[ann["category_id"]]
-        rle = maskUtils.frPyObjects(ann["segmentation"], image_height, image_width)
-        mask = maskUtils.decode(rle)
-        return class_idx, mask
+        rles = maskUtils.frPyObjects(ann["segmentation"], image_height, image_width)
+
+        # Создаем пустую маску для текущей аннотации
+        combined_mask = np.zeros((image_height, image_width), dtype=np.uint8)
+        
+        # Если rles это не список, делаем его списком
+        if not isinstance(rles, list):
+            rles = [rles]
+        
+        for rle in rles:
+            mask = maskUtils.decode(rle)
+            
+            if len(mask.shape) == 3:
+                mask = np.max(mask, axis=2)
+            
+            # Добавляем текущую маску к общей маске
+            combined_mask = np.maximum(combined_mask, mask)
+
+        return class_idx, combined_mask
 
     # так было ниже сделаю для флоренции
     # def __getitem__(self, idx, contours=False):

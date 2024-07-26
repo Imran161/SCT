@@ -238,7 +238,7 @@ def train_model(
     metrics_calculator = DetectionMetrics(mode="ML", num_classes=num_classes)
 
     class_names_dict = {
-        class_info["id"]: class_info["name"] for class_info in sinusite_pat_classes_3
+        class_info["id"]: class_info["name"] for class_info in kidneys_out_classes # sinusite_pat_classes_3
     }
 
     classes = list(class_names_dict.keys())
@@ -280,84 +280,86 @@ def train_model(
             desc=f"Epoch {epoch + 1}/{num_epochs}",
             unit="batch",
         ) as pbar:
-            for batch_idx, train_batch in enumerate(train_loader):
-                optimizer.zero_grad()
+                for batch_idx, train_batch in enumerate(train_loader):
+                    optimizer.zero_grad()
 
-                # images, masks = train_batch
-                # # print("masks 0", masks[0][2]) тут по ходу не фон нулевой, там не только единицы
-                # masks = masks[:, 1:, :, :].to(device)
-                # Используем только пиксельные значения
-                # pixel_values = images["pixel_values"].to(device)
-                # input_ids = images["input_ids"].to(device)
-                # print("input_ids shape", input_ids.shape)
-                # print("pixel_values", pixel_values)
+                    # images, masks = train_batch
+                    # # print("masks 0", masks[0][2]) тут по ходу не фон нулевой, там не только единицы
+                    # masks = masks[:, 1:, :, :].to(device)
+                    # Используем только пиксельные значения
+                    # pixel_values = images["pixel_values"].to(device)
+                    # input_ids = images["input_ids"].to(device)
+                    # print("input_ids shape", input_ids.shape)
+                    # print("pixel_values", pixel_values)
 
-                images = train_batch["images"].to(device)
-                masks = train_batch["masks"][:, 1:, :, :].to(device)
+                    images = train_batch["images"].to(device)
+                    masks = train_batch["masks"][:, 1:, :, :].to(device)
+                    
+                    # print("images shape", images.shape)
+                    # print("masks shape", masks.shape)
+                    # unique_values = torch.unique(masks)
+                    # num_unique_values = unique_values.numel()
+                    # print("Уникальные значения:", unique_values)
+                    # print("Количество уникальных значений:", num_unique_values)
 
-                # unique_values = torch.unique(masks)
-                # num_unique_values = unique_values.numel()
-                # print("Уникальные значения:", unique_values)
-                # print("Количество уникальных значений:", num_unique_values)
+                    if use_augmentation:
+                        images, masks = seg_transform.apply_transform(images, masks)
+                        # save_images(images, masks, epoch, batch_idx, save_dir="transforms")
 
-                if use_augmentation:
-                    images, masks = seg_transform.apply_transform(images, masks)
-                    # save_images(images, masks, epoch, batch_idx, save_dir="transforms")
+                    # шум
+                    # шум к маске
+                    # k_values = np.arange(0, 10.1, 0.1)
+                    # combined = add_noise_and_combine(
+                    #     images, masks, epoch, num_epochs, k_values, batch_idx, num_batches
+                    # )
 
-                # шум
-                # шум к маске
-                # k_values = np.arange(0, 10.1, 0.1)
-                # combined = add_noise_and_combine(
-                #     images, masks, epoch, num_epochs, k_values, batch_idx, num_batches
-                # )
+                    if all_class_weights is not None:
+                        all_weights_no_fon = [x[1:] for x in all_class_weights]
+                    else:
+                        all_weights_no_fon = None
 
-                if all_class_weights is not None:
-                    all_weights_no_fon = [x[1:] for x in all_class_weights]
-                else:
-                    all_weights_no_fon = None
+                    # шум
+                    # outputs = model(
+                    #     combined
+                    # )  # 2 канала на выходе 3 на входе (num_classes + 1)
+                    # outputs = torch.tanh(outputs)
+                    # outputs = torch.sigmoid(outputs)
 
-                # шум
-                # outputs = model(
-                #     combined
-                # )  # 2 канала на выходе 3 на входе (num_classes + 1)
-                # outputs = torch.tanh(outputs)
-                # outputs = torch.sigmoid(outputs)
+                    # Вычитаем предсказанный шум из исходного изображения
+                    # outputs = (combined[:, 1:, :, :] - outputs + 1) / 3.0
+                    # loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
 
-                # Вычитаем предсказанный шум из исходного изображения
-                # outputs = (combined[:, 1:, :, :] - outputs + 1) / 3.0
-                # loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
+                    # не шум
+                    outputs = model(images)
+                    # outputs = model(pixel_values=images)
+                    outputs = torch.sigmoid(outputs)
+                    loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
 
-                # не шум
-                outputs = model(images)
-                # outputs = model(pixel_values=images)
-                outputs = torch.sigmoid(outputs)
-                loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
+                    loss.backward()
+                    optimizer.step()
+                    train_loss_sum += loss.item()
 
-                loss.backward()
-                optimizer.step()
-                train_loss_sum += loss.item()
+                    # Сохранение изображений и масок
+                    # save_images(images, combined[:, 1:, :, :], epoch, batch_idx)
 
-                # Сохранение изображений и масок
-                # save_images(images, combined[:, 1:, :, :], epoch, batch_idx)
+                    # шум
+                    # train_iou_batch = iou_metric(outputs, masks, num_classes)
+                    # не шум
+                    train_iou_batch = iou_metric(outputs, masks, num_classes)
+                    train_iou_sum += train_iou_batch
 
-                # шум
-                # train_iou_batch = iou_metric(outputs, masks, num_classes)
-                # не шум
-                train_iou_batch = iou_metric(outputs, masks, num_classes)
-                train_iou_sum += train_iou_batch
+                    # для трейна метрики тоже посчитаю
+                    metrics_calculator.update_counter(
+                        masks,
+                        outputs,  # outputs не шум
+                    )  # , advanced_metrics=True)
 
-                # для трейна метрики тоже посчитаю
-                metrics_calculator.update_counter(
-                    masks,
-                    outputs,  # outputs не шум
-                )  # , advanced_metrics=True)
+                    # скользящее среднее
+                    n += 1
+                    pbar.set_postfix(loss=train_loss_sum / n)
+                    pbar.update(1)
 
-                # скользящее среднее
-                n += 1
-                pbar.set_postfix(loss=train_loss_sum / n)
-                pbar.update(1)
-
-                # оптимизация весов
+                    # оптимизация весов
 
         train_loss_avg = train_loss_sum / len(train_loader)
 
@@ -383,7 +385,9 @@ def train_model(
                     # средняя метрика
                     writer.add_scalar(f"Train/Mean/{key}", value.mean().item(), epoch)
                     for i, val in enumerate(value):
-                        writer.add_scalar(f"Train/{key}/Class_{i}", val.item(), epoch)
+                        class_name = class_names_dict[i + 1]
+                        # writer.add_scalar(f"Train/{key}/Class_{i}", val.item(), epoch)
+                        writer.add_scalar(f"Train/{key}/{class_name}", val.item(), epoch)
                 else:
                     writer.add_scalar(f"Train/{key}", value.item(), epoch)
 
@@ -465,7 +469,9 @@ def train_model(
                     # добавил среднюю метрику по классам
                     writer.add_scalar(f"Val/Mean/{key}", value.mean().item(), epoch)
                     for i, val in enumerate(value):
-                        writer.add_scalar(f"Val/{key}/Class_{i}", val.item(), epoch)
+                        class_name = class_names_dict[i + 1]
+                        # writer.add_scalar(f"Val/{key}/Class_{i}", val.item(), epoch)
+                        writer.add_scalar(f"Val/{key}/{class_name}", val.item(), epoch)
                 else:
                     writer.add_scalar(f"Val/{key}", value.item(), epoch)
 
@@ -499,7 +505,8 @@ def train_model(
                 },
             }
 
-            best_model_path = "sinusite_best_models"
+            # best_model_path = "sinusite_best_models"
+            best_model_path = "kidneys_best_models"
             if not os.path.exists(best_model_path):
                 os.makedirs(best_model_path)
 
@@ -609,8 +616,8 @@ if __name__ == "__main__":
     # path = "/home/imran-nasyrov/sinusite_json_data"
     # subdirectories_list = get_direct_subdirectories(path)
 
-    batch_size = 6
-    num_classes = 2
+    batch_size = 24
+    num_classes = 3
 
     # sinusite
     # params = {
@@ -632,7 +639,7 @@ if __name__ == "__main__":
         "out_classes": kidneys_out_classes,
         "dataloader": True,
         "resize": (512, 512),
-        "recalculate": True,
+        "recalculate": False,
         "delete_null": False,
     }
 
@@ -646,15 +653,15 @@ if __name__ == "__main__":
         list_of_name_out_classes,
     ) = coco_dataloader.make_dataloaders(batch_size=batch_size, train_val_ratio=0.8)
 
-    # for train_batch in train_loader:
-    #     images = train_batch["images"]
-    #     masks = train_batch["masks"][:, 1:, :, :]
-    #     # print("masks", masks.shape) torch.Size([6, 2, 1024, 1024])
-    #     for i in range(len(images)):
-    #         coco_dataloader.show_image_with_mask(
-    #             images[i][0].cpu().numpy(), masks[i].cpu().numpy(), i
-    #         )
-    #     break  # Display only the first batch
+
+    # for batch_idx, train_batch in enumerate(train_loader):
+    #     print(f"Batch {batch_idx}:")
+    #     for i, item in enumerate(train_batch["images"]):
+    #         print(f"  Item {i}: image shape = {item.shape}")
+    #     for i, item in enumerate(train_batch["masks"]):
+    #         print(f"  Item {i}: mask shape = {item.shape}")
+
+
 
     print("total_train", total_train)
     print("len total_train", len(total_train))
@@ -663,7 +670,7 @@ if __name__ == "__main__":
     print("len val_loader", len(val_loader))
     print("len train_loader", len(train_loader))
 
-    device = torch.device("cuda:1")
+    device = torch.device("cuda:2")
     print(device)
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
 
@@ -754,7 +761,7 @@ if __name__ == "__main__":
     # model = FlorenceSegmentationModel(model).to(device)
 
     learning_rate = 3e-4
-    num_epochs = 1200
+    num_epochs = 120
 
     optimizer = Adam(model.parameters(), lr=learning_rate)
     lr_sched = None
@@ -762,7 +769,7 @@ if __name__ == "__main__":
     use_class_weight = True
     use_pixel_weight = True
     use_pixel_opt = True
-    power = "1.1_kidneys_weak"
+    power = "1.3_kidneys_weak"
 
     exp_setup = ExperimentSetup(
         train_loader, total_train, pixel_total_train, batch_size, num_classes
@@ -797,10 +804,10 @@ if __name__ == "__main__":
         use_augmentation=False,
     )
 
-    model_weight = f"sinusite_best_models/best_{experiment_name}_model.pth"
+    model_weight = f"kidneys_best_models/best_{experiment_name}_model.pth"
 
-    val_predict_path = f"diff_predict_sinusite/predict_{experiment_name}/val"
-    train_predict_path = f"diff_predict_sinusite/predict_{experiment_name}/train"
+    val_predict_path = f"kidneys_predict/predict_{experiment_name}/val"
+    train_predict_path = f"kidneys_predict/predict_{experiment_name}/train"
 
     limited_train_loader = itertools.islice(train_loader, 6)
     limited_val_loader = itertools.islice(val_loader, 6)

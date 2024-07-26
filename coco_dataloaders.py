@@ -201,14 +201,14 @@ class SINUSITE_COCODataLoader:
             batch_size=batch_size,
             shuffle=True,
             num_workers=4,
-            # collate_fn=collate_fn
+            collate_fn=self.custom_collate_fn
         )
         val_loader = DataLoader(
             concat_val_data,
             batch_size=batch_size,
             shuffle=False,
             num_workers=4,
-            # collate_fn=collate_fn
+            collate_fn=self.custom_collate_fn
         )
 
         return (
@@ -218,6 +218,14 @@ class SINUSITE_COCODataLoader:
             pixel_total_train,
             self.list_out_classes,
         )
+        
+    
+    @staticmethod
+    def custom_collate_fn(batch):
+        images = torch.stack([item["images"] for item in batch])
+        masks = torch.stack([item["masks"] for item in batch])
+        return {"images": images, "masks": masks}
+    
 
     def show_image_with_mask(self, image, mask, idx):
         image = (image * 255).astype(np.uint8)
