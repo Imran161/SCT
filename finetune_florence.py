@@ -1,526 +1,289 @@
-import base64
-import json
+import io
 import os
-import random
-from typing import Any, Dict, List, Tuple
-import shutil
-from pathlib import Path
-
-import cv2
-import matplotlib.pyplot as plt
-import numpy as np
-import supervision as sv
+import re
+import json
 import torch
-import torch.nn as nn
-from peft import LoraConfig, get_peft_model
-from PIL import Image, ImageDraw, ImageFont
-from torch.optim import Adam, AdamW
-from torch.utils.data import DataLoader, Dataset
-from tqdm import tqdm
+import html
+import base64
+import itertools
+
+import numpy as np
+import cv2
+import supervision as sv
+
+from torch.utils.data import Dataset, DataLoader
+from torch.utils.tensorboard import SummaryWriter
 from transformers import (
-    AutoImageProcessor,
+    AdamW,
     AutoModelForCausalLM,
-    AutoModelForImageSegmentation,
     AutoProcessor,
-    SegformerConfig,
-    SegformerFeatureExtractor,
-    SegformerForSemanticSegmentation,
-    get_scheduler,
+    get_scheduler
+)
+from tqdm import tqdm
+from typing import List, Dict, Any, Tuple, Generator
+from peft import LoraConfig, get_peft_model
+from PIL import Image
+
+
+CHECKPOINT = "microsoft/Florence-2-base-ft"
+REVISION = 'refs/pr/6'
+DEVICE = torch.device("cuda:2")
+
+model = AutoModelForCausalLM.from_pretrained(CHECKPOINT, trust_remote_code=True, revision=REVISION).to(DEVICE)
+processor = AutoProcessor.from_pretrained(CHECKPOINT, trust_remote_code=True, revision=REVISION)
+
+
+
+import os
+import json
+import random
+from typing import List, Dict, Any, Tuple
+from PIL import Image
+from torch.utils.data import Dataset, DataLoader
+from tqdm import tqdm
+
+# @title Define `JSONLDataset` class
+
+class JSONLDataset:
+    def __init__(self, subdirectories: List[str]):
+        self.subdirectories = subdirectories
+        self.entries = self._load_entries()
+
+    def _load_entries(self) -> List[Dict[str, Any]]:
+        entries = []
+        for subdir in self.subdirectories:
+            jsonl_file_path = os.path.join(subdir, 'annotations.jsonl')
+            image_directory_path = os.path.join(subdir, 'images')
+            if os.path.exists(jsonl_file_path) and os.path.exists(image_directory_path):
+                with open(jsonl_file_path, 'r') as file:
+                    for line in file:
+                        data = json.loads(line)
+                        data['image_directory_path'] = image_directory_path
+                        entries.append(data)
+        return entries
+
+    def __len__(self) -> int:
+        return len(self.entries)
+
+    def __getitem__(self, idx: int) -> Tuple[Image.Image, Dict[str, Any]]:
+        if idx < 0 or idx >= len(self.entries):
+            raise IndexError("Index out of range")
+
+        entry = self.entries[idx]
+        image_path = os.path.join(entry['image_directory_path'], entry['image'])
+        try:
+            image = Image.open(image_path).convert("RGB")
+            return (image, entry)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Image file {image_path} not found.")
+
+class DetectionDataset(Dataset):
+    def __init__(self, subdirectories: List[str]):
+        self.dataset = JSONLDataset(subdirectories)
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        image, data = self.dataset[idx]
+        prefix = data['prefix']
+        suffix = data['suffix']
+        return prefix, suffix, image
+
+# @title Function to split directories into train and validation
+
+def split_directories(root_directory_path: str, train_val_ratio: float = 0.9):
+    subdirectories = [os.path.join(root_directory_path, d) for d in os.listdir(root_directory_path) if os.path.isdir(os.path.join(root_directory_path, d))]
+    
+    # в task_sinusite_data_29_11_23_1_st_sin_labeling , 2,3 в этих трех файлах не скопировались фотки, там исправлять надо
+    wrong_list = ["/home/imran-nasyrov/sinusite_jsonl/task_sinusite_data_29_11_23_1_st_sin_labeling", 
+                  "/home/imran-nasyrov/sinusite_jsonl/task_sinusite_data_29_11_23_2_st_sin_labeling", 
+                  "/home/imran-nasyrov/sinusite_jsonl/task_sinusite_data_29_11_23_3_st_sin_labeling"
+    ]
+    
+    subdirectories = [subdirs for subdirs in subdirectories if subdirs not in wrong_list]
+    # print("subdirectories", subdirectories)
+    random.shuffle(subdirectories)
+
+    num_train = int(train_val_ratio * len(subdirectories))
+    train_subdirectories = subdirectories[:num_train]
+    val_subdirectories = subdirectories[num_train:]
+
+    return train_subdirectories, val_subdirectories
+
+# @title Initiate `DetectionsDataset` and `DataLoader` for train and validation subsets
+
+BATCH_SIZE = 24
+NUM_WORKERS = 0
+
+def collate_fn(batch):
+    questions, answers, images = zip(*batch)
+    inputs = processor(text=list(questions), images=list(images), return_tensors="pt", padding=True).to(DEVICE)
+    return inputs, answers
+
+root_directory_path = "/home/imran-nasyrov/sinusite_jsonl"
+train_subdirectories, val_subdirectories = split_directories(root_directory_path)
+
+train_dataset = DetectionDataset(subdirectories=train_subdirectories)
+val_dataset = DetectionDataset(subdirectories=val_subdirectories)
+
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, collate_fn=collate_fn, num_workers=NUM_WORKERS, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, collate_fn=collate_fn, num_workers=NUM_WORKERS)
+
+print("len train_loader", len(train_loader))
+print("val val_loader", len(val_loader))
+
+# в task_sinusite_data_29_11_23_1_st_sin_labeling , 2,3 в этих трех файлах не скопировались фотки, там исправлять надо
+
+
+
+# @title Setup LoRA Florence-2 model
+
+config = LoraConfig(
+    r=8,
+    lora_alpha=8,
+    target_modules=["q_proj", "o_proj", "k_proj", "v_proj", "linear", "Conv2d", "lm_head", "fc2"],
+    task_type="CAUSAL_LM",
+    lora_dropout=0.05,
+    bias="none",
+    inference_mode=False,
+    use_rslora=True,
+    init_lora_weights="gaussian",
+    revision=REVISION
 )
 
-from coco_classes import sinusite_base_classes, sinusite_pat_classes_3
-from coco_dataloaders import FLORENCE_COCODataLoader, SINUSITE_COCODataLoader
-from metrics import DetectionMetrics
-from sct_val import test_model
-from transforms import SegTransform
-from utils import ExperimentSetup, iou_metric, save_best_metrics_to_csv, set_seed
+peft_model = get_peft_model(model, config)
+peft_model.print_trainable_parameters()
 
-set_seed(64)
+torch.cuda.empty_cache()
 
 
-import os
-import json
-import shutil
-from pathlib import Path
-import numpy as np
-import cv2
-from pycocotools import mask as maskUtils
+# @title Define train loop
 
-# тут не ресайзятся картинки
-
-# class_id_to_name = {
-#     1: "Right maxillary sinus (outer contour)",
-#     2: "Left maxillary sinus (outer contour)",
-#     3: "Left frontal sinus (outer contour)",
-#     4: "Right frontal sinus (outer contour)",
-#     5: "Right maxillary sinus (inner void boundary)",
-#     6: "Left maxillary sinus (inner void boundary)",
-#     7: "Left frontal sinus (inner void boundary)",
-#     8: "Right frontal sinus (inner void boundary)",
-#     9: "Reduction of pneumatization of paranasal sinuses",
-#     10: "Horizontal fluid-air level",
-#     11: "Absence of pneumatization of paranasal sinuses",
-#     12: "Other pathology",
-#     13: "Inscription"
-# }
-
-
-# src_folder = 'sinusite_json_data'
-# dst_folder = 'sinusite_jsonl'
-
-# # Создать целевую папку, если она не существует
-# os.makedirs(dst_folder, exist_ok=True)
-
-# # Функция для извлечения ограничивающих рамок из маски
-# def process_mask(ann, image_height, image_width):
-#     rles = maskUtils.frPyObjects(ann["segmentation"], image_height, image_width)
-
-#     # Создаем пустую маску для текущей аннотации
-#     combined_mask = np.zeros((image_height, image_width), dtype=np.uint8)
-
-#     # Если rles это не список, делаем его списком
-#     if not isinstance(rles, list):
-#         rles = [rles]
-
-#     for rle in rles:
-#         mask = maskUtils.decode(rle)
-
-#         if len(mask.shape) == 3:
-#             mask = np.max(mask, axis=2)
-
-#         # Добавляем текущую маску к общей маске
-#         combined_mask = np.maximum(combined_mask, mask)
-
-#     return combined_mask
-
-# # Обработать каждый подкаталог
-# with tqdm(total=len(os.listdir(src_folder)), desc="Making files") as pbar_dirs: 
-#     for task_folder in os.listdir(src_folder): 
-#         task_path = os.path.join(src_folder, task_folder)
-#         if not os.path.isdir(task_path):
-#             continue
-
-#         # Создать соответствующий каталог в целевой папке
-#         dst_task_path = os.path.join(dst_folder, task_folder)
-#         os.makedirs(dst_task_path, exist_ok=True)
-
-#         # Копировать изображения
-#         images_src_path = os.path.join(task_path, 'images')
-#         images_dst_path = os.path.join(dst_task_path, 'images')
-#         shutil.copytree(images_src_path, images_dst_path, dirs_exist_ok=True)
-
-#         # Обработать JSON-файл аннотаций
-#         annotations_path = os.path.join(task_path, 'annotations', 'instances_default.json')
-#         with open(annotations_path, 'r') as f:
-#             coco_data = json.load(f)
-
-#         annotations = coco_data['annotations']
-#         images = coco_data['images']
-#         # categories = {cat['id']: cat['name'] for cat in coco_data['categories']}
-#         # print("categories", categories)
-#         categories = class_id_to_name
-        
-#         jsonl_data = []
-
-#         for image_info in images:
-#             image_id = image_info['id']
-#             image_filename = image_info['file_name']
-#             width = image_info['width']
-#             height = image_info['height']
-            
-#             image_annotations = [ann for ann in annotations if ann['image_id'] == image_id]
-
-#             suffix = ''
-#             for ann in image_annotations:
-#                 category_name = categories[ann['category_id']]
-#                 segmentation = ann['segmentation']
-                
-#                 # Преобразовать сегментации в маску и найти bounding boxes
-#                 combined_mask = process_mask(ann, height, width)
-                
-#                 contours, _ = cv2.findContours(
-#                     combined_mask.astype(np.uint8),
-#                     cv2.RETR_TREE,
-#                     cv2.CHAIN_APPROX_SIMPLE,
-#                 )
-#                 for contour in contours:
-#                     x, y, w, h = cv2.boundingRect(contour)
-#                     x2 = x + w
-#                     y2 = y + h
-#                     # Нормализовать и масштабировать bounding box
-#                     box = [
-#                         int(x * 1000 / width),
-#                         int(y * 1000 / height),
-#                         int(x2 * 1000 / width),
-#                         int(y2 * 1000 / height)
-#                     ]
-#                     suffix += f"{category_name}<loc_{box[0]}><loc_{box[1]}><loc_{box[2]}><loc_{box[3]}>"
-
-#             jsonl_data.append({
-#                 "image": image_filename,
-#                 "prefix": "<OD>",
-#                 "suffix": suffix
-#             })
-
-#         # Записать результаты в JSONL файл
-#         jsonl_file_path = os.path.join(dst_task_path, 'annotations.jsonl')
-#         with open(jsonl_file_path, 'w') as f:
-#             for entry in jsonl_data:
-#                 json.dump(entry, f)
-#                 f.write('\n')
-                
-#         pbar_dirs.update(1)    
-            
-     
-     
-
-
-# а тут боксы не все 
-
-# # Указать пути к папкам
-# src_folder = 'sinusite_json_data'
-# dst_folder = 'sinusite_jsonl'
-
-# # Создать целевую папку, если она не существует
-# os.makedirs(dst_folder, exist_ok=True)
-
-# # Словарь для перевода id в имя класса на английском языке
-# class_id_to_name = {
-#     1: "Right maxillary sinus (outer contour)",
-#     2: "Left maxillary sinus (outer contour)",
-#     3: "Left frontal sinus (outer contour)",
-#     4: "Right frontal sinus (outer contour)",
-#     5: "Right maxillary sinus (inner void boundary)",
-#     6: "Left maxillary sinus (inner void boundary)",
-#     7: "Left frontal sinus (inner void boundary)",
-#     8: "Right frontal sinus (inner void boundary)",
-#     9: "Reduction of pneumatization of paranasal sinuses",
-#     10: "Horizontal fluid-air level",
-#     11: "Absence of pneumatization of paranasal sinuses",
-#     12: "Other pathology",
-#     13: "Inscription"
-# }
-
-# # Функция для извлечения ограничивающих рамок из маски
-# def process_mask(ann, image_height, image_width):
-#     rles = maskUtils.frPyObjects(ann["segmentation"], image_height, image_width)
-
-#     # Создаем пустую маску для текущей аннотации
-#     combined_mask = np.zeros((image_height, image_width), dtype=np.uint8)
-
-#     # Если rles это не список, делаем его списком
-#     if not isinstance(rles, list):
-#         rles = [rles]
-
-#     for rle in rles:
-#         mask = maskUtils.decode(rle)
-
-#         if len(mask.shape) == 3:
-#             mask = np.max(mask, axis=2)
-
-#         # Добавляем текущую маску к общей маске
-#         combined_mask = np.maximum(combined_mask, mask)
-
-#     return combined_mask
-
-# # Функция для изменения размера изображения и корректировки bounding boxes
-# def resize_image_and_boxes(image, boxes, target_size):
-#     h, w = image.shape[:2]
-#     resized_image = cv2.resize(image, (target_size, target_size))
-#     scale_x = target_size / w
-#     scale_y = target_size / h
-#     resized_boxes = []
-#     for box in boxes:
-#         x1 = int(box[0] * scale_x)
-#         y1 = int(box[1] * scale_y)
-#         x2 = int(box[2] * scale_x)
-#         y2 = int(box[3] * scale_y)
-#         resized_boxes.append([x1, y1, x2, y2])
-#     return resized_image, resized_boxes
-
-# # Обработать каждый подкаталог
-# with tqdm(total=len(os.listdir(src_folder)), desc="Processing directories") as pbar_dirs:
-#     for task_folder in os.listdir(src_folder):
-#         task_path = os.path.join(src_folder, task_folder)
-#         if not os.path.isdir(task_path):
-#             continue
-
-#         # Создать соответствующий каталог в целевой папке
-#         dst_task_path = os.path.join(dst_folder, task_folder)
-#         os.makedirs(dst_task_path, exist_ok=True)
-
-#         # Копировать изображения
-#         images_src_path = os.path.join(task_path, 'images')
-#         images_dst_path = os.path.join(dst_task_path, 'images')
-#         os.makedirs(images_dst_path, exist_ok=True)
-
-#         # Обработать JSON-файл аннотаций
-#         annotations_path = os.path.join(task_path, 'annotations', 'instances_default.json')
-#         with open(annotations_path, 'r') as f:
-#             coco_data = json.load(f)
-
-#         annotations = coco_data['annotations']
-#         images = coco_data['images']
-#         categories = class_id_to_name  # Используем словарь для перевода имен классов
-
-#         jsonl_data = []
-
-#         for image_info in images:
-#             image_id = image_info['id']
-#             image_filename = image_info['file_name']
-#             width = image_info['width']
-#             height = image_info['height']
-
-#             image_annotations = [ann for ann in annotations if ann['image_id'] == image_id]
-
-#             suffix = ''
-#             boxes = []
-#             for ann in image_annotations:
-#                 if ann['category_id'] not in categories:
-#                     continue  # Пропустить аннотации с недействительными category_id
-                
-#                 category_name = categories[ann['category_id']]
-#                 segmentation = ann['segmentation']
-
-#                 # Преобразовать сегментации в маску и найти bounding boxes
-#                 combined_mask = process_mask(ann, height, width)
-
-#                 contours, _ = cv2.findContours(
-#                     combined_mask.astype(np.uint8),
-#                     cv2.RETR_TREE,
-#                     cv2.CHAIN_APPROX_SIMPLE,
-#                 )
-                
-#                 if not contours:
-#                     continue # Пропустить, если контуры не найдены
-                
-#                 for contour in contours:
-#                     x, y, w, h = cv2.boundingRect(contour)
-#                     x2 = x + w
-#                     y2 = y + h
-#                     # Нормализовать и масштабировать bounding box
-#                     box = [
-#                         int(x * 1000 / width),
-#                         int(y * 1000 / height),
-#                         int(x2 * 1000 / width),
-#                         int(y2 * 1000 / height)
-#                     ]
-#                     suffix += f"{category_name}<loc_{box[0]}><loc_{box[1]}><loc_{box[2]}><loc_{box[3]}>"
-#                     boxes.append([x, y, x2, y2])
-
-#             # Загрузить изображение
-#             image_path = os.path.join(images_src_path, image_filename)
-#             image = cv2.imread(image_path)
-#             if image is None:
-#                 continue
-
-#             # Изменить размер изображения и bounding boxes
-#             resized_image, resized_boxes = resize_image_and_boxes(image, boxes, 1024)
-
-#             # Сохранить измененное изображение
-#             dst_image_path = os.path.join(images_dst_path, image_filename)
-#             cv2.imwrite(dst_image_path, resized_image)
-
-#             # Обновить suffix с учетом новых размеров bounding boxes
-#             suffix = ''
-#             # тут ошибка
-#             # print("len image_annotations", len(image_annotations)) 9
-#             # print("len resized_boxes", len(resized_boxes)) 11
-#             # print("annotations_path", annotations_path) sinusite_json_data/task_sinusite_data_29_11_23_1_st_sin_labeling/annotations/instances_default.json
-#             # print("image_id", image_id) 68
-#             for i, box in enumerate(resized_boxes):
-#                 if i >= len(image_annotations):
-#                     print(f"Skipping box {i} as it exceeds image_annotations length")
-#                     break
-#                 if image_annotations[i]['category_id'] not in categories:
-#                     continue  # Пропустить аннотации с недействительными category_id
-                
-#                 category_name = categories[image_annotations[i]['category_id']]
-#                 suffix += f"{category_name}<loc_{box[0]}><loc_{box[1]}><loc_{box[2]}><loc_{box[3]}>"
-
-#             jsonl_data.append({
-#                 "image": image_filename,
-#                 "prefix": "<OD>",
-#                 "suffix": suffix
-#             })
-
-#         # Записать результаты в JSONL файл
-#         jsonl_file_path = os.path.join(dst_task_path, 'annotations.jsonl')
-#         with open(jsonl_file_path, 'w') as f:
-#             for entry in jsonl_data:
-#                 json.dump(entry, f)
-#                 f.write('\n')
-
-#         pbar_dirs.update(1)
-
-
-
-
-
-
-
-
-
-
-# Указать пути к папкам
-src_folder = 'sinusite_json_data'
-dst_folder = 'sinusite_jsonl'
-
-# Создать целевую папку, если она не существует
-os.makedirs(dst_folder, exist_ok=True)
-
-# Словарь для перевода id в имя класса на английском языке
-class_id_to_name = {
-    1: "Right maxillary sinus (outer contour)",
-    2: "Left maxillary sinus (outer contour)",
-    3: "Left frontal sinus (outer contour)",
-    4: "Right frontal sinus (outer contour)",
-    5: "Right maxillary sinus (inner void boundary)",
-    6: "Left maxillary sinus (inner void boundary)",
-    7: "Left frontal sinus (inner void boundary)",
-    8: "Right frontal sinus (inner void boundary)",
-    9: "Reduction of pneumatization of paranasal sinuses",
-    10: "Horizontal fluid-air level",
-    11: "Absence of pneumatization of paranasal sinuses",
-    12: "Other pathology",
-    13: "Inscription"
-}
-
-# Функция для извлечения ограничивающих рамок из маски
-def process_mask(ann, image_height, image_width):
-    rles = maskUtils.frPyObjects(ann["segmentation"], image_height, image_width)
+def train_model(experiment_name, train_loader, val_loader, model, processor, epochs=10, lr=1e-6):
+    writer = SummaryWriter(log_dir=f"runs_florence2/{experiment_name}_logs")
     
-    # Создаем пустую маску для текущей аннотации
-    combined_mask = np.zeros((image_height, image_width), dtype=np.uint8)
+    optimizer = AdamW(model.parameters(), lr=lr)
+    num_training_steps = epochs * len(train_loader)
+    lr_scheduler = get_scheduler(
+        name="linear",
+        optimizer=optimizer,
+        num_warmup_steps=0,
+        num_training_steps=num_training_steps,
+    )
 
-    # Если rles это не список, делаем его списком
-    if not isinstance(rles, list):
-        rles = [rles]
+    # render_inference_results(peft_model, val_loader.dataset, 6)
 
-    for rle in rles:
-        mask = maskUtils.decode(rle)
+    for epoch in range(epochs):
+        model.train()
+        train_loss = 0
+        for inputs, answers in tqdm(train_loader, desc=f"Training Epoch {epoch + 1}/{epochs}"):
 
-        if len(mask.shape) == 3:
-            mask = np.max(mask, axis=2)
+            input_ids = inputs["input_ids"]
+            pixel_values = inputs["pixel_values"]
+            labels = processor.tokenizer(
+                text=answers,
+                return_tensors="pt",
+                padding=True,
+                return_token_type_ids=False
+            ).input_ids.to(DEVICE)
 
-        # Добавляем текущую маску к общей маске
-        combined_mask = np.maximum(combined_mask, mask)
+            outputs = model(input_ids=input_ids, pixel_values=pixel_values, labels=labels)
+            loss = outputs.loss
 
-    return combined_mask
+            loss.backward(), optimizer.step(), lr_scheduler.step(), optimizer.zero_grad()
+            train_loss += loss.item()
 
-# Функция для изменения размера изображения и корректировки bounding boxes
-def resize_image_and_boxes(image, boxes, target_size):
-    h, w = image.shape[:2]
-    resized_image = cv2.resize(image, (target_size, target_size))
-    scale_x = target_size / w
-    scale_y = target_size / h
-    resized_boxes = []
-    for box in boxes:
-        x1 = int(box[0] * scale_x)
-        y1 = int(box[1] * scale_y)
-        x2 = int(box[2] * scale_x)
-        y2 = int(box[3] * scale_y)
-        resized_boxes.append([x1, y1, x2, y2])
-    return resized_image, resized_boxes
+        avg_train_loss = train_loss / len(train_loader)
+        print(f"Average Training Loss: {avg_train_loss}")
 
-# Обработать каждый подкаталог
-with tqdm(total=len(os.listdir(src_folder)), desc="Processing directories") as pbar_dirs:
-    for task_folder in os.listdir(src_folder):
-        task_path = os.path.join(src_folder, task_folder)
-        if not os.path.isdir(task_path):
-            continue
+        model.eval()
+        val_loss = 0
+        with torch.no_grad():
+            for inputs, answers in tqdm(val_loader, desc=f"Validation Epoch {epoch + 1}/{epochs}"):
 
-        # Создать соответствующий каталог в целевой папке
-        dst_task_path = os.path.join(dst_folder, task_folder)
-        os.makedirs(dst_task_path, exist_ok=True)
+                input_ids = inputs["input_ids"]
+                pixel_values = inputs["pixel_values"]
+                labels = processor.tokenizer(
+                    text=answers,
+                    return_tensors="pt",
+                    padding=True,
+                    return_token_type_ids=False
+                ).input_ids.to(DEVICE)
 
-        # Копировать изображения
-        images_src_path = os.path.join(task_path, 'images')
-        images_dst_path = os.path.join(dst_task_path, 'images')
-        os.makedirs(images_dst_path, exist_ok=True)
+                outputs = model(input_ids=input_ids, pixel_values=pixel_values, labels=labels)
+                print("outputs val", outputs)
+                loss = outputs.loss
 
-        # Обработать JSON-файл аннотаций
-        annotations_path = os.path.join(task_path, 'annotations', 'instances_default.json')
-        with open(annotations_path, 'r') as f:
-            coco_data = json.load(f)
+                val_loss += loss.item()
 
-        annotations = coco_data['annotations']
-        images = coco_data['images']
-        categories = class_id_to_name  # Используем словарь для перевода имен классов
+            avg_val_loss = val_loss / len(val_loader)
+            print(f"Average Validation Loss: {avg_val_loss}")
 
-        jsonl_data = []
+            # render_inference_results(peft_model, val_loader.dataset, 6)
 
-        for image_info in images:
-            image_id = image_info['id']
-            image_filename = image_info['file_name']
-            width = image_info['width']
-            height = image_info['height']
+        writer.add_scalar("Loss/train", avg_train_loss, epoch)
+        writer.add_scalar("Loss/validation", avg_val_loss, epoch)
+        
+        output_dir = f"./model_checkpoints/epoch_{epoch+1}"
+        os.makedirs(output_dir, exist_ok=True)
+        model.save_pretrained(output_dir)
+        processor.save_pretrained(output_dir)
+        
+    writer.close()    
 
-            image_annotations = [ann for ann in annotations if ann['image_id'] == image_id]
+EPOCHS = 120
+LR = 5e-6
+experiment_name = "1.1"
 
-            suffix = ''
-            all_boxes = []
-            all_categories = []
-            for ann in image_annotations:
-                if ann['category_id'] not in categories:
-                    continue  # Пропустить аннотации с недействительными category_id
-                
-                category_name = categories[ann['category_id']]
-                segmentation = ann['segmentation']
+train_model(experiment_name, train_loader, val_loader, peft_model, processor, epochs=EPOCHS, lr=LR)
 
-                # Преобразовать сегментации в маску и найти bounding boxes
-                combined_mask = process_mask(ann, height, width)
 
-                contours, _ = cv2.findContours(
-                    combined_mask.astype(np.uint8),
-                    cv2.RETR_TREE,
-                    cv2.CHAIN_APPROX_SIMPLE,
-                )
-                
-                if not contours:
-                    continue  # Пропустить, если контуры не найдены
-                
-                for contour in contours:
-                    x, y, w, h = cv2.boundingRect(contour)
-                    x2 = x + w
-                    y2 = y + h
-                    # Добавить bounding box в список
-                    all_boxes.append([x, y, x2, y2])
-                    all_categories.append(category_name)
 
-            # Загрузить изображение
-            image_path = os.path.join(images_src_path, image_filename)
-            image = cv2.imread(image_path)
-            if image is None:
-                continue
+# Веса загрузить не могу
 
-            # Изменить размер изображения и bounding boxes
-            resized_image, resized_boxes = resize_image_and_boxes(image, all_boxes, 1024)
+def render_inference_results(model, dataset: DetectionDataset, count: int, output_directory: str):
+    os.makedirs(output_directory, exist_ok=True)
+    count = min(count, len(dataset))
+    for i in range(count):
+        image, data = dataset.dataset[i]
+        prefix = data['prefix']
+        inputs = processor(text=prefix, images=image, return_tensors="pt").to(DEVICE)
+        generated_ids = model.generate(
+            input_ids=inputs["input_ids"],
+            pixel_values=inputs["pixel_values"],
+            max_new_tokens=1024,
+            num_beams=3
+        )
+        generated_text = processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
+        answer = processor.post_process_generation(generated_text, task='<OD>', image_size=image.size)
 
-            # Сохранить измененное изображение
-            dst_image_path = os.path.join(images_dst_path, image_filename)
-            cv2.imwrite(dst_image_path, resized_image)
+        # Получите аннотации из ответа
+        print("answer", answer)
+        bboxes = answer['<OD>']['bboxes']
+        labels = answer['<OD>']['labels']
 
-            # Обновить suffix с учетом новых размеров bounding boxes
-            suffix = ''
-            for i, box in enumerate(resized_boxes):
-                if i >= len(all_categories):
-                    print(f"Skipping box {i} as it exceeds categories length")
-                    break
-                category_name = all_categories[i]
-                suffix += f"{category_name}<loc_{box[0]}><loc_{box[1]}><loc_{box[2]}><loc_{box[3]}>"
+        # Преобразуйте изображение в формат OpenCV
+        image_cv = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
 
-            jsonl_data.append({
-                "image": image_filename,
-                "prefix": "<OD>",
-                "suffix": suffix
-            })
+        # Нарисуйте bounding boxes и подписи
+        for bbox, label in zip(bboxes, labels):
+            x1, y1, x2, y2 = map(int, bbox)
+            cv2.rectangle(image_cv, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.putText(image_cv, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-        # Записать результаты в JSONL файл
-        jsonl_file_path = os.path.join(dst_task_path, 'annotations.jsonl')
-        with open(jsonl_file_path, 'w') as f:
-            for entry in jsonl_data:
-                json.dump(entry, f)
-                f.write('\n')
+        # Сохраните изображение
+        output_path = os.path.join(output_directory, f"result_{i}.jpg")
+        cv2.imwrite(output_path, image_cv)
 
-        pbar_dirs.update(1)
+
+# Загрузите обученную модель и процессор
+model_checkpoint = "/home/imran-nasyrov/model_checkpoints/epoch_10/"
+
+# model = AutoModelForCausalLM.from_pretrained(model_checkpoint, trust_remote_code=True).to(DEVICE)
+# processor = AutoProcessor.from_pretrained(model_checkpoint, trust_remote_code=True)
+
+# output_directory = "./inference_results"
+# render_inference_results(model, val_dataset, count=6, output_directory=output_directory)
+
+
