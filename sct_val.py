@@ -292,94 +292,94 @@ def test_model(
     ]
 
     # было так
-    with torch.no_grad():
-        # убрал отрисовку для трейна
-        # for train_batch in train_loader:
-        #     # optimizer.zero_grad()
-        #     images = train_batch["images"].to(device)
-        #     masks = train_batch["masks"][:, 1:, :, :].to(device)
-        #     outputs = model(images)
-        #     outputs = torch.sigmoid(outputs)
+    # with torch.no_grad():
+    #     # убрал отрисовку для трейна
+    #     # for train_batch in train_loader:
+    #     #     # optimizer.zero_grad()
+    #     #     images = train_batch["images"].to(device)
+    #     #     masks = train_batch["masks"][:, 1:, :, :].to(device)
+    #     #     outputs = model(images)
+    #     #     outputs = torch.sigmoid(outputs)
 
-        #     # loss = criterion(outputs, masks)
-        #     # loss.backward()
-        #     # optimizer.step()
-        #     # train_loss_sum += loss.item()
+    #     #     # loss = criterion(outputs, masks)
+    #     #     # loss.backward()
+    #     #     # optimizer.step()
+    #     #     # train_loss_sum += loss.item()
 
-        #     # train_iou_batch = iou_metric(outputs, masks, num_classes)
-        #     # # train_iou_sum += torch.sum(train_iou_batch, dim=0)  # Суммирование IoU для каждого класса по всем батчам
-        #     # # вроде так
-        #     # train_iou_sum += train_iou_batch
+    #     #     # train_iou_batch = iou_metric(outputs, masks, num_classes)
+    #     #     # # train_iou_sum += torch.sum(train_iou_batch, dim=0)  # Суммирование IoU для каждого класса по всем батчам
+    #     #     # # вроде так
+    #     #     # train_iou_sum += train_iou_batch
 
-        #     # # для трейна метрики тоже посчитаю
-        #     # metrics_calculator.update_counter(masks, outputs)
+    #     #     # # для трейна метрики тоже посчитаю
+    #     #     # metrics_calculator.update_counter(masks, outputs)
 
-        #     # уберу пока
-        #     train_image_visualizer.visualize(
-        #         images, masks, outputs, class_names_dict, colors, epoch, num_images_to_draw
-        #     )
+    #     #     # уберу пока
+    #     #     train_image_visualizer.visualize(
+    #     #         images, masks, outputs, class_names_dict, colors, epoch, num_images_to_draw
+    #     #     )
 
-        for k, val_batch in enumerate(val_loader):
-            images_val = val_batch["images"].to(device)
-            masks_val = val_batch["masks"][:, 1:].to(device)
-            outputs_val = model(images_val)
+    #     for k, val_batch in enumerate(val_loader):
+    #         images_val = val_batch["images"].to(device)
+    #         masks_val = val_batch["masks"][:, 1:].to(device)
+    #         outputs_val = model(images_val)
 
-            outputs_val = torch.sigmoid(outputs_val)
+    #         outputs_val = torch.sigmoid(outputs_val)
 
-            # лоссы я убрал
-            # val_loss_sum += criterion(outputs_val, masks_val).item()
-            # val_iou_batch = iou_metric(outputs_val, masks_val, num_classes)
-            # val_iou_sum += val_iou_batch
-            # metrics_calculator.update_counter(masks_val, outputs_val)
+    #         # лоссы я убрал
+    #         # val_loss_sum += criterion(outputs_val, masks_val).item()
+    #         # val_iou_batch = iou_metric(outputs_val, masks_val, num_classes)
+    #         # val_iou_sum += val_iou_batch
+    #         # metrics_calculator.update_counter(masks_val, outputs_val)
 
-            # уберу пока
-            val_image_visualizer.visualize(
-                images_val, masks_val, outputs_val, class_names_dict, colors, epoch, num_images_to_draw
-            )
+    #         # уберу пока
+    #         val_image_visualizer.visualize(
+    #             images_val, masks_val, outputs_val, class_names_dict, colors, epoch, num_images_to_draw
+    #         )
 
-        # тут все норм но я в даталоудеры хочу 32 элемента передать и тогда тут ошибка
-        try:
-            val_loss_avg = val_loss_sum / len(val_loader)
-            val_iou_avg = val_iou_sum / len(val_loader)
+    #     # тут все норм но я в даталоудеры хочу 32 элемента передать и тогда тут ошибка
+    #     try:
+    #         val_loss_avg = val_loss_sum / len(val_loader)
+    #         val_iou_avg = val_iou_sum / len(val_loader)
 
-            # print(f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {train_loss_avg}, Val Loss: {val_loss_avg},  Val IoU: {val_iou_avg}")
-            print(f"Val Loss: {val_loss_avg},  Val IoU: {val_iou_avg}")
+    #         # print(f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {train_loss_avg}, Val Loss: {val_loss_avg},  Val IoU: {val_iou_avg}")
+    #         print(f"Val Loss: {val_loss_avg},  Val IoU: {val_iou_avg}")
             
-        except:
-            pass
+    #     except:
+    #         pass
         
-        # val_metrics = metrics_calculator.calc_metrics()
+    #     # val_metrics = metrics_calculator.calc_metrics()
 
-        # base_name = model_weight.split("/")[1]
-        # parts = base_name.split('_')
-        # experiment_name = parts[1]
-        # print(f"Experiment name: {experiment_name}")
+    #     # base_name = model_weight.split("/")[1]
+    #     # parts = base_name.split('_')
+    #     # experiment_name = parts[1]
+    #     # print(f"Experiment name: {experiment_name}")
         
-        # best_metrics = {
-        #     "experiment": experiment_name,
-        #     "epoch": 119, # вот тут посто пока 3 эпоху напишу, я ее никак не сохранял
-        #     "train_loss": 0.2,  # не пишу пока
-        #     "val_loss": 0.23, # и тут
-        #     "val_metrics": {
-        #         "IOU": val_metrics["IOU"],
-        #         "F1": val_metrics["F1"],
-        #         "area_probs_F1": val_metrics["area_probs_F1"],
-        #     },
-        # }
+    #     # best_metrics = {
+    #     #     "experiment": experiment_name,
+    #     #     "epoch": 119, # вот тут посто пока 3 эпоху напишу, я ее никак не сохранял
+    #     #     "train_loss": 0.2,  # не пишу пока
+    #     #     "val_loss": 0.23, # и тут
+    #     #     "val_metrics": {
+    #     #         "IOU": val_metrics["IOU"],
+    #     #         "F1": val_metrics["F1"],
+    #     #         "area_probs_F1": val_metrics["area_probs_F1"],
+    #     #     },
+    #     # }
         
-        # best_model_path = "sinusite_last_models"
-        # csv_file = f"{best_model_path}/last_metrics.csv"
-        # save_best_metrics_to_csv(best_metrics, csv_file)
+    #     # best_model_path = "sinusite_last_models"
+    #     # csv_file = f"{best_model_path}/last_metrics.csv"
+    #     # save_best_metrics_to_csv(best_metrics, csv_file)
         
 
 
 
     # для диффузии  
-    # img_index = 0
-    # while img_index < num_images_to_draw:
-    #     for result in val_loader:
-    #         images, masks = result["images"].to(device, dtype=torch.float32), result["masks"][:, 1:, :, :].to(device, dtype=torch.float32)
-    #         predict(model, images[0], masks[0], 2, 1, val_predict_path, device, img_index)
-    #         img_index += 1
-    #         if img_index >= num_images_to_draw:
-    #             break
+    img_index = 0
+    while img_index < num_images_to_draw:
+        for result in val_loader:
+            images, masks = result["images"].to(device, dtype=torch.float32), result["masks"][:, 1:, :, :].to(device, dtype=torch.float32)
+            predict(model, images[0], masks[0], 2, 1, val_predict_path, device, img_index)
+            img_index += 1
+            if img_index >= num_images_to_draw:
+                break

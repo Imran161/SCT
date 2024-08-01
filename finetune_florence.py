@@ -97,8 +97,8 @@ def split_directories(root_directory_path: str, train_val_ratio: float = 0.9):
     
     # в task_sinusite_data_29_11_23_1_st_sin_labeling , 2,3 в этих трех файлах не скопировались фотки, там исправлять надо
     wrong_list = ["/home/imran-nasyrov/sinusite_jsonl/task_sinusite_data_29_11_23_1_st_sin_labeling", 
-                  "/home/imran-nasyrov/sinusite_jsonl/task_sinusite_data_29_11_23_2_st_sin_labeling", 
-                  "/home/imran-nasyrov/sinusite_jsonl/task_sinusite_data_29_11_23_3_st_sin_labeling"
+                "/home/imran-nasyrov/sinusite_jsonl/task_sinusite_data_29_11_23_2_st_sin_labeling", 
+                "/home/imran-nasyrov/sinusite_jsonl/task_sinusite_data_29_11_23_3_st_sin_labeling"
     ]
     
     subdirectories = [subdirs for subdirs in subdirectories if subdirs not in wrong_list]
@@ -212,7 +212,6 @@ def train_model(experiment_name, train_loader, val_loader, model, processor, epo
                 ).input_ids.to(DEVICE)
 
                 outputs = model(input_ids=input_ids, pixel_values=pixel_values, labels=labels)
-                print("outputs val", outputs)
                 loss = outputs.loss
 
                 val_loss += loss.item()
@@ -236,7 +235,7 @@ EPOCHS = 120
 LR = 5e-6
 experiment_name = "1.1"
 
-train_model(experiment_name, train_loader, val_loader, peft_model, processor, epochs=EPOCHS, lr=LR)
+# train_model(experiment_name, train_loader, val_loader, peft_model, processor, epochs=EPOCHS, lr=LR)
 
 
 
@@ -278,12 +277,12 @@ def render_inference_results(model, dataset: DetectionDataset, count: int, outpu
 
 
 # Загрузите обученную модель и процессор
-model_checkpoint = "/home/imran-nasyrov/model_checkpoints/epoch_10/"
+model_checkpoint = "/home/imran-nasyrov/model_checkpoints/epoch_120/"
 
-# model = AutoModelForCausalLM.from_pretrained(model_checkpoint, trust_remote_code=True).to(DEVICE)
-# processor = AutoProcessor.from_pretrained(model_checkpoint, trust_remote_code=True)
+model = AutoModelForCausalLM.from_pretrained(model_checkpoint, trust_remote_code=True).to(DEVICE)
+processor = AutoProcessor.from_pretrained(model_checkpoint, trust_remote_code=True)
 
-# output_directory = "./inference_results"
-# render_inference_results(model, val_dataset, count=6, output_directory=output_directory)
+output_directory = "./inference_results"
+render_inference_results(model, val_dataset, count=6, output_directory=output_directory)
 
 

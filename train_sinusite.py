@@ -617,31 +617,31 @@ if __name__ == "__main__":
     # subdirectories_list = get_direct_subdirectories(path)
 
     batch_size = 24
-    num_classes = 3
+    num_classes = 2
 
     # sinusite
-    # params = {
-    #     "json_file_path": "/home/imran-nasyrov/sinusite_json_data",
-    #     "delete_list": [],
-    #     "base_classes": sinusite_base_classes,
-    #     "out_classes": sinusite_pat_classes_3,
-    #     "dataloader": True,
-    #     "resize": (1024, 1024),
-    #     "recalculate": False,
-    #     "delete_null": False,
-    # }
-    
-    # kidneys
     params = {
-        "json_file_path": "/home/imran-nasyrov/json_pochki",
+        "json_file_path": "/home/imran-nasyrov/sinusite_json_data",
         "delete_list": [],
-        "base_classes": kidneys_base_classes,
-        "out_classes": kidneys_out_classes,
+        "base_classes": sinusite_base_classes,
+        "out_classes": sinusite_pat_classes_3,
         "dataloader": True,
-        "resize": (512, 512),
+        "resize": (1024, 1024),
         "recalculate": False,
         "delete_null": False,
     }
+    
+    # kidneys
+    # params = {
+    #     "json_file_path": "/home/imran-nasyrov/json_pochki",
+    #     "delete_list": [],
+    #     "base_classes": kidneys_base_classes,
+    #     "out_classes": kidneys_out_classes,
+    #     "dataloader": True,
+    #     "resize": (512, 512),
+    #     "recalculate": False,
+    #     "delete_null": False,
+    # }
 
     coco_dataloader = SINUSITE_COCODataLoader(params)
 
@@ -677,7 +677,7 @@ if __name__ == "__main__":
     model = smp.FPN(
         encoder_name="efficientnet-b7",
         encoder_weights="imagenet",
-        in_channels=1, # + num_classes,  # +num_classes для диффузии
+        in_channels=1+ num_classes,  # +num_classes для диффузии
         classes=num_classes,
     )
 
@@ -768,8 +768,8 @@ if __name__ == "__main__":
 
     use_class_weight = True
     use_pixel_weight = True
-    use_pixel_opt = True
-    power = "1.3_kidneys_weak"
+    use_pixel_opt = False
+    power = "2.26_sinusite_weak"
 
     exp_setup = ExperimentSetup(
         train_loader, total_train, pixel_total_train, batch_size, num_classes
@@ -784,43 +784,43 @@ if __name__ == "__main__":
         use_class_weight, use_pixel_weight, use_pixel_opt, power
     )
 
-    train_model(
-        model,
-        optimizer,
-        criterion,
-        lr_sched,
-        num_epochs,
-        train_loader,
-        val_loader,
-        device,
-        num_classes,
-        experiment_name,
-        all_class_weights=all_class_weights,
-        alpha=pixel_all_class_weights,
-        use_opt_pixel_weight=use_pixel_opt,
-        num_cyclic_steps=0,
-        max_n=3,
-        max_k=3,
-        use_augmentation=False,
-    )
+    # train_model(
+    #     model,
+    #     optimizer,
+    #     criterion,
+    #     lr_sched,
+    #     num_epochs,
+    #     train_loader,
+    #     val_loader,
+    #     device,
+    #     num_classes,
+    #     experiment_name,
+    #     all_class_weights=all_class_weights,
+    #     alpha=pixel_all_class_weights,
+    #     use_opt_pixel_weight=use_pixel_opt,
+    #     num_cyclic_steps=0,
+    #     max_n=3,
+    #     max_k=3,
+    #     use_augmentation=False,
+    # )
 
-    model_weight = f"kidneys_best_models/best_{experiment_name}_model.pth"
+    model_weight = f"sinusite_best_models/best_{experiment_name}_model.pth"
 
-    val_predict_path = f"kidneys_predict/predict_{experiment_name}/val"
-    train_predict_path = f"kidneys_predict/predict_{experiment_name}/train"
+    val_predict_path = f"diff_predict_sinusite/predict_{experiment_name}/val"
+    train_predict_path = f"diff_predict_sinusite/predict_{experiment_name}/train"
 
     limited_train_loader = itertools.islice(train_loader, 6)
     limited_val_loader = itertools.islice(val_loader, 6)
 
-    # avg_loss = test_model(
-    #     model,
-    #     model_weight,
-    #     criterion,
-    #     train_loader,# limited_train_loader,
-    #     train_predict_path,
-    #     val_loader, #limited_val_loader,
-    #     val_predict_path,
-    #     device,
-    #     num_classes,
-    #     num_images_to_draw=36
-    # )
+    avg_loss = test_model(
+        model,
+        model_weight,
+        criterion,
+        train_loader,# limited_train_loader,
+        train_predict_path,
+        val_loader, #limited_val_loader,
+        val_predict_path,
+        device,
+        num_classes,
+        num_images_to_draw=36
+    )

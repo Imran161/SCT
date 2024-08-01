@@ -46,7 +46,7 @@ image = Image.open(local_image_path)
 
 # task_prompt = '<CAPTION_TO_PHRASE_GROUNDING>'
 # task_prompt = "<DETAILED_CAPTION>" # {'CAPTION': '\nCT scan of the head and neck of a man with a large tumor in the middle of his head<loc_153><loc_113><loc_912><loc_998>\n'}
-task_prompt = "<REFERRING_EXPRESSION_SEGMENTATION>"
+task_prompt = "<OD>"
 results, modified_image = run_example(task_prompt, text_input="anomaly")
 print(results)
 
@@ -131,5 +131,5 @@ def draw_polygons(image, prediction, fill_mask=False, save_path=None):
     print(f"Saved image with polygons drawn to: {save_path}")
 
 output_image = copy.deepcopy(image)
-draw_polygons(output_image, results['<REFERRING_EXPRESSION_SEGMENTATION>'], fill_mask=True, 
+draw_polygons(output_image, results['<OD>'], fill_mask=True, 
               save_path="test_florence")

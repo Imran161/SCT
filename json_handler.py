@@ -8,9 +8,10 @@ import torch
 import torchvision
 from pycocotools import mask as maskUtils
 from pycocotools.coco import COCO
+from torch.utils.data.dataset import Dataset
 
 
-class JsonHandler:
+class JsonHandler(Dataset):
     def __init__(self, params_dict: dict, split_category: str):
         self.json_file_path = params_dict.get("json_file_path", "")
         self.delete_list = params_dict.get("delete_list", [])
