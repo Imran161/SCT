@@ -4,10 +4,16 @@ from transformers import AutoProcessor, AutoModelForCausalLM
 from PIL import Image
 import requests
 import copy
+import supervision as sv
+from PIL import Image
+import torch
 
+DEVICE = torch.device("cuda:2")
+
+model_checkpoint = "/home/imran-nasyrov/model_checkpoints/epoch_120"
 model_id = 'microsoft/Florence-2-large'
-model = AutoModelForCausalLM.from_pretrained(model_id, trust_remote_code=True).eval().cuda()
-processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
+model = AutoModelForCausalLM.from_pretrained(model_checkpoint, trust_remote_code=True).eval().to(DEVICE)
+processor = AutoProcessor.from_pretrained(model_checkpoint, trust_remote_code=True)
 
 """## define the prediction function"""
 
@@ -18,8 +24,8 @@ def run_example(task_prompt, text_input=None):
         prompt = task_prompt + text_input
     inputs = processor(text=prompt, images=image, return_tensors="pt")
     generated_ids = model.generate(
-      input_ids=inputs["input_ids"].cuda(),
-      pixel_values=inputs["pixel_values"].cuda(),
+      input_ids=inputs["input_ids"].to(DEVICE),
+      pixel_values=inputs["pixel_values"].to(DEVICE),
       max_new_tokens=1024,
       early_stopping=False,
       do_sample=False,
@@ -46,39 +52,66 @@ image = Image.open(local_image_path)
 
 # task_prompt = '<CAPTION_TO_PHRASE_GROUNDING>'
 # task_prompt = "<DETAILED_CAPTION>" # {'CAPTION': '\nCT scan of the head and neck of a man with a large tumor in the middle of his head<loc_153><loc_113><loc_912><loc_998>\n'}
-task_prompt = "<OD>"
-results, modified_image = run_example(task_prompt, text_input="anomaly")
+task_prompt = "<CAPTION_TO_PHRASE_GROUNDING>"
+results, modified_image = run_example(task_prompt, text_input="pathology")
 print(results)
 
-# import matplotlib.pyplot as plt  
-# import matplotlib.patches as patches  
-# def plot_bbox(image, data):
-#    # Create a figure and axes  
-#     fig, ax = plt.subplots()  
-#
-#     # Display the image  
-#     ax.imshow(image)  
-#
-#     # Plot each bounding box  
-#     for bbox, label in zip(data['bboxes'], data['labels']):  
-#         # Unpack the bounding box coordinates  
-#         x1, y1, x2, y2 = bbox  
-#         # Create a Rectangle patch  
-#         rect = patches.Rectangle((x1, y1), x2-x1, y2-y1, linewidth=1, edgecolor='r', facecolor='none')  
-#         # Add the rectangle to the Axes  
-#         ax.add_patch(rect)  
-#         # Annotate the label  
-#         plt.text(x1, y1, label, color='white', fontsize=8, bbox=dict(facecolor='red', alpha=0.5))  
-#
-#     # Remove the axis ticks and labels  
-#     ax.axis('off')  
-#
-#     # Show the plot  
-#     # plt.show()  
-#     save_path="test_florence"
-#     fig.savefig(f"{save_path}/img.jpg", bbox_inches='tight')
-#
-# plot_bbox(image, results['<CAPTION_TO_PHRASE_GROUNDING>'])    
+# OPEN_VOCABULARY_DETECTION короче тоже не рисует то что надо
+def convert_to_od_format(data):  
+    """  
+    Converts a dictionary with 'bboxes' and 'bboxes_labels' into a dictionary with separate 'bboxes' and 'labels' keys.  
+  
+    Parameters:  
+    - data: The input dictionary with 'bboxes', 'bboxes_labels', 'polygons', and 'polygons_labels' keys.  
+  
+    Returns:  
+    - A dictionary with 'bboxes' and 'labels' keys formatted for object detection results.  
+    """  
+    # Extract bounding boxes and labels  
+    bboxes = data.get('bboxes', [])  
+    labels = data.get('bboxes_labels', [])  
+      
+    # Construct the output format  
+    od_results = {  
+        'bboxes': bboxes,  
+        'labels': labels  
+    }  
+      
+    return od_results 
+
+# bbox_results  = convert_to_od_format(results['<OPEN_VOCABULARY_DETECTION>'])
+
+
+import matplotlib.pyplot as plt  
+import matplotlib.patches as patches  
+def plot_bbox(image, data):
+   # Create a figure and axes  
+    fig, ax = plt.subplots()  
+
+    # Display the image  
+    ax.imshow(image)  
+
+    # Plot each bounding box  
+    for bbox, label in zip(data['bboxes'], data['labels']):  
+        # Unpack the bounding box coordinates  
+        x1, y1, x2, y2 = bbox  
+        # Create a Rectangle patch  
+        rect = patches.Rectangle((x1, y1), x2-x1, y2-y1, linewidth=1, edgecolor='r', facecolor='none')  
+        # Add the rectangle to the Axes  
+        ax.add_patch(rect)  
+        # Annotate the label  
+        plt.text(x1, y1, label, color='white', fontsize=8, bbox=dict(facecolor='red', alpha=0.5))  
+
+    # Remove the axis ticks and labels  
+    ax.axis('off')  
+
+    # Show the plot  
+    # plt.show()  
+    save_path="test_florence"
+    fig.savefig(f"{save_path}/img.jpg", bbox_inches='')
+
+plot_bbox(image, results['<CAPTION_TO_PHRASE_GROUNDING>'])    
+# plot_bbox(image, bbox_results)   
 
     
 from PIL import Image, ImageDraw, ImageFont
@@ -130,6 +163,9 @@ def draw_polygons(image, prediction, fill_mask=False, save_path=None):
     image.save(f"{save_path}/img.jpg")
     print(f"Saved image with polygons drawn to: {save_path}")
 
-output_image = copy.deepcopy(image)
-draw_polygons(output_image, results['<OD>'], fill_mask=True, 
-              save_path="test_florence")
+# output_image = copy.deepcopy(image)
+# draw_polygons(output_image, results['<REFERRING_EXPRESSION_SEGMENTATION>'], fill_mask=True, 
+#               save_path="test_florence")
+
+
+

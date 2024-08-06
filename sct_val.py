@@ -128,8 +128,9 @@ class SegTransform:
         true_masks = image_and_true_masks[1:, :, :].contiguous()
         aug_image = torch.unsqueeze(aug_image, 0).contiguous()
         return aug_image.contiguous(), true_masks
-    
-def predict(net, image, masks, num_classes, draw_class, val_predict_path, device, img_index):
+
+# тут просто тепловые карты 9 штук
+def old_predict(net, image, masks, num_classes, draw_class, val_predict_path, device, img_index):
     combined = torch.empty(1,
                            image.size(0) + num_classes,
                            image.size(1),
@@ -159,10 +160,10 @@ def predict(net, image, masks, num_classes, draw_class, val_predict_path, device
                 
                 net_out = net(combined)
                 # print("net_out", net_out)
-                # outputs = torch.sigmoid(net_out) 
-                # combined[:,1:,:, :] = outputs
-                outputs = torch.tanh(net_out) # Прямой проход
-                combined[:,1:,:, :] = ((combined[:,1:,:, :] - outputs + 1)/3.0)
+                outputs = torch.sigmoid(net_out) 
+                combined[:,1:,:, :] = outputs
+                # outputs = torch.tanh(net_out) # Прямой проход
+                # combined[:,1:,:, :] = ((combined[:,1:,:, :] - outputs + 1)/3.0)
                 # print(i+j, combined[0, 1].max(), combined[0, 2].max())
                 
                 axs[i, j].imshow(combined[0, 1+draw_class].cpu().detach().numpy())
@@ -215,6 +216,170 @@ def predict(net, image, masks, num_classes, draw_class, val_predict_path, device
     cv2.imwrite(orig_image_filename, true_image_with_contours)
     print("Original image with masks saved:", orig_image_filename)
   
+# тут контуры на реальном и 8 штук предсказанных
+def countures_predict(net, image, masks, num_classes, draw_class, val_predict_path, device, img_index):
+    combined = torch.empty(1,
+                           image.size(0) + num_classes,
+                           image.size(1),
+                           image.size(2),
+                           device=device)
+
+    # трансформы 
+    seg_transform = SegTransform()
+    image, masks = seg_transform.apply_transform(image, masks)
+    
+    noise = torch.rand(num_classes, image.size(1), image.size(2), device=device)
+    combined[0] = torch.cat([image, noise], dim=0)
+    
+    with torch.no_grad():
+        fig, axs = plt.subplots(3, 3, figsize=(10, 10))
+
+        # Исходное изображение с настоящей маской
+        image_np = image.cpu().squeeze().numpy()
+        if image_np.ndim == 2:
+            image_np = np.stack([image_np] * 3, axis=-1)  # Grayscale to RGB
+        elif image_np.shape[0] == 3:
+            image_np = np.transpose(image_np, (1, 2, 0))  # CHW to HWC
+
+        image_np = (image_np * 255).astype(np.uint8)
+        image_gray = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
+        image_gray = cv2.cvtColor(image_gray, cv2.COLOR_GRAY2BGR)
+
+        masks_np = masks.detach().cpu().numpy()
+        true_image_with_contours = image_gray.copy()
+
+        # Контуры настоящей маски
+        true_mask = masks_np[draw_class].astype(int).astype(np.uint8)
+        true_mask[true_mask > 0] = 1
+        true_contours, _ = cv2.findContours(
+            true_mask,
+            cv2.RETR_TREE,
+            cv2.CHAIN_APPROX_SIMPLE,
+        )
+        true_image_with_contours = cv2.drawContours(
+            true_image_with_contours, true_contours, -1, (0, 255, 0), 2
+        )
+
+        axs[0, 0].imshow(true_image_with_contours)
+        axs[0, 0].set_title('True Mask')
+        axs[0, 0].axis('off')
+
+        # Предсказанные маски
+        for idx in range(1, 9):
+            net_out = net(combined)
+            # outputs = torch.sigmoid(net_out) # это для предсказания маски ######
+            # combined[:,1:,:, :] = outputs # это для предсказания маски ######
+            outputs = torch.tanh(net_out) # это для предсказания шума
+            pred_mask = outputs[0, draw_class].cpu().detach().numpy()
+            combined[:, 1:, :, :] = ((combined[:, 1:, :, :] - outputs + 1) / 3.0) # это для предсказания шума
+            
+            pred_image_with_contours = image_gray.copy()
+            thresholded_pred_mask = (pred_mask > 0.5).astype(np.uint8)  # Пороговая фильтрация
+            pred_contours, _ = cv2.findContours(
+                thresholded_pred_mask,
+                cv2.RETR_TREE,
+                cv2.CHAIN_APPROX_SIMPLE,
+            )
+            pred_image_with_contours = cv2.drawContours(
+                pred_image_with_contours, pred_contours, -1, (255, 0, 0), 2
+            )
+
+            axs[idx // 3, idx % 3].imshow(pred_image_with_contours)
+            axs[idx // 3, idx % 3].set_title(f'Prediction {idx}')
+            axs[idx // 3, idx % 3].axis('off')
+
+    plt.tight_layout()
+    fig_filename = f"{val_predict_path}/{class_names_dict[draw_class+1]}"
+    if not os.path.exists(fig_filename):
+        os.makedirs(fig_filename)
+            
+    fig.savefig(f"{fig_filename}/image_predict_{img_index}.jpg", bbox_inches='tight')
+    print("savefig", fig_filename)
+    plt.close(fig) 
+
+
+def predict(net, image, masks, num_classes, draw_class, val_predict_path, device, img_index):
+    combined = torch.empty(1,
+                           image.size(0) + num_classes,
+                           image.size(1),
+                           image.size(2),
+                           device=device)
+
+    # трансформы 
+    seg_transform = SegTransform()
+    image, masks = seg_transform.apply_transform(image, masks)
+    
+    noise = torch.rand(num_classes, image.size(1), image.size(2), device=device)
+    combined[0] = torch.cat([image, noise], dim=0)
+    
+    with torch.no_grad():
+        fig, axs = plt.subplots(3, 3, figsize=(10, 10))
+
+        # Исходное изображение с настоящей маской
+        image_np = image.cpu().squeeze().numpy()
+        if image_np.ndim == 2:
+            image_np = np.stack([image_np] * 3, axis=-1)  # Grayscale to RGB
+        elif image_np.shape[0] == 3:
+            image_np = np.transpose(image_np, (1, 2, 0))  # CHW to HWC
+
+        image_np = (image_np * 255).astype(np.uint8)
+        image_gray = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
+        image_gray = cv2.cvtColor(image_gray, cv2.COLOR_GRAY2BGR)
+
+        masks_np = masks.detach().cpu().numpy()
+        true_image_with_contours = image_gray.copy()
+
+        # Контуры настоящей маски
+        true_mask = masks_np[draw_class].astype(int).astype(np.uint8)
+        true_mask[true_mask > 0] = 1
+        true_contours, _ = cv2.findContours(
+            true_mask,
+            cv2.RETR_TREE,
+            cv2.CHAIN_APPROX_SIMPLE,
+        )
+        true_image_with_contours = cv2.drawContours(
+            true_image_with_contours, true_contours, -1, (0, 255, 0), 2
+        )
+
+        axs[0, 0].imshow(true_image_with_contours)
+        axs[0, 0].set_title('True Mask')
+        axs[0, 0].axis('off')
+
+        # Предсказанные маски в виде тепловых карт
+        for idx in range(1, 9):
+            net_out = net(combined)
+            outputs = torch.sigmoid(net_out) # это для предсказания маски ######
+            combined[:,1:,:, :] = outputs # это для предсказания маски ######
+            # outputs = torch.tanh(net_out) # это для предсказания шума
+            pred_mask = outputs[0, draw_class].cpu().detach().numpy()
+            # combined[:, 1:, :, :] = ((combined[:, 1:, :, :] - outputs + 1) / 3.0) # это для предсказания шума
+
+            # Создание тепловой карты
+            heatmap = cv2.applyColorMap((pred_mask * 255).astype(np.uint8), cv2.COLORMAP_JET)
+            heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
+
+            # Наложение тепловой карты на изображение
+            alpha = 0.6  # Прозрачность тепловой карты
+            blended = cv2.addWeighted(image_np, 1 - alpha, heatmap, alpha, 0)
+
+            axs[idx // 3, idx % 3].imshow(blended)
+            axs[idx // 3, idx % 3].set_title(f'Prediction {idx}')
+            axs[idx // 3, idx % 3].axis('off')
+
+    plt.tight_layout()    
+    fig_filename = f"{val_predict_path}/{class_names_dict[draw_class+1]}"
+    if not os.path.exists(fig_filename):
+        os.makedirs(fig_filename)
+            
+    fig.savefig(f"{fig_filename}/image_predict_{img_index}.jpg", bbox_inches='tight')
+    print("savefig", fig_filename)
+    plt.close(fig) 
+    
+
+class_names_dict = {
+        1: "Снижение пневматизации околоносовых пазух",
+        2: "Горизонтальный уровень жидкость-воздух",
+    }
 
 
 def test_model(
@@ -248,16 +413,16 @@ def test_model(
     #     4: "Эпидуральное кровозлияние",
     # }
 
-    # class_names_dict = {
-    #     1: "Снижение пневматизации околоносовых пазух",
-    #     2: "Горизонтальный уровень жидкость-воздух",
-    # }
-    
     class_names_dict = {
-        1: "pathology",
-        2: "right_kidney_ID1",
-        3: "left_kidney_ID5"
+        1: "Снижение пневматизации околоносовых пазух",
+        2: "Горизонтальный уровень жидкость-воздух",
     }
+    
+    # class_names_dict = {
+    #     1: "pathology",
+    #     2: "right_kidney_ID1",
+    #     3: "left_kidney_ID5"
+    # }
 
     # Инициализация переменных для метрик
     val_loss_sum = 0.0
@@ -379,7 +544,7 @@ def test_model(
     while img_index < num_images_to_draw:
         for result in val_loader:
             images, masks = result["images"].to(device, dtype=torch.float32), result["masks"][:, 1:, :, :].to(device, dtype=torch.float32)
-            predict(model, images[0], masks[0], 2, 1, val_predict_path, device, img_index)
+            predict(model, images[0], masks[0], 2, 0, val_predict_path, device, img_index)
             img_index += 1
             if img_index >= num_images_to_draw:
                 break

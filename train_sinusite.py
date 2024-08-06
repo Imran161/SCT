@@ -234,11 +234,11 @@ def train_model(
     use_augmentation=False,
 ):
     # Создание объекта SummaryWriter для записи логов
-    writer = SummaryWriter(log_dir=f"runs_kidneys/{experiment_name}_logs")
+    writer = SummaryWriter(log_dir=f"runs_sinusite/{experiment_name}_logs")
     metrics_calculator = DetectionMetrics(mode="ML", num_classes=num_classes)
 
     class_names_dict = {
-        class_info["id"]: class_info["name"] for class_info in kidneys_out_classes # sinusite_pat_classes_3
+        class_info["id"]: class_info["name"] for class_info in sinusite_pat_classes_3 # kidneys_out_classes
     }
 
     classes = list(class_names_dict.keys())
@@ -505,8 +505,8 @@ def train_model(
                 },
             }
 
-            # best_model_path = "sinusite_best_models"
-            best_model_path = "kidneys_best_models"
+            best_model_path = "sinusite_best_models"
+            # best_model_path = "kidneys_best_models"
             if not os.path.exists(best_model_path):
                 os.makedirs(best_model_path)
 
@@ -530,8 +530,8 @@ def train_model(
         },
     }
 
-    # last_model_path = "sinusite_last_models"
-    last_model_path = "kidneys_last_models"
+    last_model_path = "sinusite_last_models"
+    # last_model_path = "kidneys_last_models"
     if not os.path.exists(last_model_path):
         os.makedirs(last_model_path)
 
@@ -616,7 +616,7 @@ if __name__ == "__main__":
     # path = "/home/imran-nasyrov/sinusite_json_data"
     # subdirectories_list = get_direct_subdirectories(path)
 
-    batch_size = 24
+    batch_size = 6
     num_classes = 2
 
     # sinusite
@@ -670,14 +670,14 @@ if __name__ == "__main__":
     print("len val_loader", len(val_loader))
     print("len train_loader", len(train_loader))
 
-    device = torch.device("cuda:2")
+    device = torch.device("cuda:1")
     print(device)
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
 
-    model = smp.FPN(
+    model = smp.MAnet(
         encoder_name="efficientnet-b7",
         encoder_weights="imagenet",
-        in_channels=1+ num_classes,  # +num_classes для диффузии
+        in_channels=1,  # +num_classes для диффузии
         classes=num_classes,
     )
 
@@ -768,8 +768,8 @@ if __name__ == "__main__":
 
     use_class_weight = True
     use_pixel_weight = True
-    use_pixel_opt = False
-    power = "2.26_sinusite_weak"
+    use_pixel_opt = True
+    power = "2.33_sinusite_weak"
 
     exp_setup = ExperimentSetup(
         train_loader, total_train, pixel_total_train, batch_size, num_classes
@@ -784,25 +784,25 @@ if __name__ == "__main__":
         use_class_weight, use_pixel_weight, use_pixel_opt, power
     )
 
-    # train_model(
-    #     model,
-    #     optimizer,
-    #     criterion,
-    #     lr_sched,
-    #     num_epochs,
-    #     train_loader,
-    #     val_loader,
-    #     device,
-    #     num_classes,
-    #     experiment_name,
-    #     all_class_weights=all_class_weights,
-    #     alpha=pixel_all_class_weights,
-    #     use_opt_pixel_weight=use_pixel_opt,
-    #     num_cyclic_steps=0,
-    #     max_n=3,
-    #     max_k=3,
-    #     use_augmentation=False,
-    # )
+    train_model(
+        model,
+        optimizer,
+        criterion,
+        lr_sched,
+        num_epochs,
+        train_loader,
+        val_loader,
+        device,
+        num_classes,
+        experiment_name,
+        all_class_weights=all_class_weights,
+        alpha=pixel_all_class_weights,
+        use_opt_pixel_weight=use_pixel_opt,
+        num_cyclic_steps=0,
+        max_n=3,
+        max_k=3,
+        use_augmentation=False,
+    )
 
     model_weight = f"sinusite_best_models/best_{experiment_name}_model.pth"
 
@@ -812,15 +812,15 @@ if __name__ == "__main__":
     limited_train_loader = itertools.islice(train_loader, 6)
     limited_val_loader = itertools.islice(val_loader, 6)
 
-    avg_loss = test_model(
-        model,
-        model_weight,
-        criterion,
-        train_loader,# limited_train_loader,
-        train_predict_path,
-        val_loader, #limited_val_loader,
-        val_predict_path,
-        device,
-        num_classes,
-        num_images_to_draw=36
-    )
+    # avg_loss = test_model(
+    #     model,
+    #     model_weight,
+    #     criterion,
+    #     train_loader,# limited_train_loader,
+    #     train_predict_path,
+    #     val_loader, #limited_val_loader,
+    #     val_predict_path,
+    #     device,
+    #     num_classes,
+    #     num_images_to_draw=36
+    # )
