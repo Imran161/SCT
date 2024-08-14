@@ -616,7 +616,7 @@ if __name__ == "__main__":
     # path = "/home/imran-nasyrov/sinusite_json_data"
     # subdirectories_list = get_direct_subdirectories(path)
 
-    batch_size = 6
+    batch_size = 4
     num_classes = 2
 
     # sinusite
@@ -674,7 +674,7 @@ if __name__ == "__main__":
     print(device)
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
 
-    model = smp.MAnet(
+    model = smp.PAN(
         encoder_name="efficientnet-b7",
         encoder_weights="imagenet",
         in_channels=1,  # +num_classes для диффузии
@@ -769,7 +769,7 @@ if __name__ == "__main__":
     use_class_weight = True
     use_pixel_weight = True
     use_pixel_opt = True
-    power = "2.33_sinusite_weak"
+    power = "2.34_sinusite_weak"
 
     exp_setup = ExperimentSetup(
         train_loader, total_train, pixel_total_train, batch_size, num_classes

@@ -109,3 +109,34 @@ kidneys_out_classes = [
     },
     
 ]
+
+
+kidneys_pat_out_classes = [
+    {
+        "name": "malignant_tumor_ID9",
+        "id": 1,
+        "summable_masks": [9],
+        "subtractive_masks": [],
+    },
+    
+    {
+        "name": "benign_tumor_ID10",
+        "id": 2,
+        "summable_masks": [10],
+        "subtractive_masks": [],
+    },
+    
+    {
+        "name": "cyst_ID11",
+        "id": 3,
+        "summable_masks": [11],
+        "subtractive_masks": [],
+    },
+     
+    {
+        "name": "abscess_ID12",
+        "id": 4,
+        "summable_masks": [12],
+        "subtractive_masks": [],
+    },
+]

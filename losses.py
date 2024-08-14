@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 
 
 def binary_cross_entropy(outputs: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
@@ -143,3 +144,31 @@ def strong_combined_loss(output, target, class_weight, alpha):
 
     loss2 = strong_iou_loss(output, target, class_weight)
     return (loss1 + loss2) / 2
+
+
+def global_focus_loss(label, true_label, mode="ML", global_loss_sum=0, global_loss_numel=0):
+
+    smooth=0.00001
+   
+    if mode == "ML":
+        label = F.sigmoid(label)
+        label = label+smooth
+        loss = -(true_label * torch.log(label) + (1 - true_label) * torch.log(1 - label))
+        
+    if mode == "MC":
+        label = F.softmax(label)
+        label = label+smooth
+        logged_label = torch.log(label)
+        loss = - true_label * logged_label
+    
+    global_loss_sum += loss.sum().item()
+    global_loss_numel += loss.numel()
+    
+    pt = torch.exp(loss - global_loss_sum/global_loss_numel)
+    loss = loss*pt
+    loss_mean = torch.mean(loss)
+
+    return loss_mean
+
+сравнить на почках ее с Надо bce, focal без всего, focal с пиксельными с FPN а потом linknet
+новые данные нарезать скинуть Саше в трех проекциях и запустить с kidneys_pat_out_classesс FPN а потом с linknet, а дальше новые лоссы будем использовать

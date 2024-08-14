@@ -10,7 +10,7 @@ import torch
 
 DEVICE = torch.device("cuda:2")
 
-model_checkpoint = "/home/imran-nasyrov/model_checkpoints/epoch_120"
+model_checkpoint = "/home/imran-nasyrov/model_checkpoints/1.1/epoch_120"
 model_id = 'microsoft/Florence-2-large'
 model = AutoModelForCausalLM.from_pretrained(model_checkpoint, trust_remote_code=True).eval().to(DEVICE)
 processor = AutoProcessor.from_pretrained(model_checkpoint, trust_remote_code=True)

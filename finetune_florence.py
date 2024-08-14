@@ -96,12 +96,12 @@ def split_directories(root_directory_path: str, train_val_ratio: float = 0.9):
     subdirectories = [os.path.join(root_directory_path, d) for d in os.listdir(root_directory_path) if os.path.isdir(os.path.join(root_directory_path, d))]
     
     # в task_sinusite_data_29_11_23_1_st_sin_labeling , 2,3 в этих трех файлах не скопировались фотки, там исправлять надо
-    wrong_list = ["/home/imran-nasyrov/sinusite_jsonl/task_sinusite_data_29_11_23_1_st_sin_labeling", 
-                "/home/imran-nasyrov/sinusite_jsonl/task_sinusite_data_29_11_23_2_st_sin_labeling", 
-                "/home/imran-nasyrov/sinusite_jsonl/task_sinusite_data_29_11_23_3_st_sin_labeling"
-    ]
+    # wrong_list = ["/home/imran-nasyrov/sinusite_jsonl/task_sinusite_data_29_11_23_1_st_sin_labeling", 
+    #             "/home/imran-nasyrov/sinusite_jsonl/task_sinusite_data_29_11_23_2_st_sin_labeling", 
+    #             "/home/imran-nasyrov/sinusite_jsonl/task_sinusite_data_29_11_23_3_st_sin_labeling"
+    # ]
     
-    subdirectories = [subdirs for subdirs in subdirectories if subdirs not in wrong_list]
+    # subdirectories = [subdirs for subdirs in subdirectories if subdirs not in wrong_list]
     # print("subdirectories", subdirectories)
     random.shuffle(subdirectories)
 
@@ -224,7 +224,7 @@ def train_model(experiment_name, train_loader, val_loader, model, processor, epo
         writer.add_scalar("Loss/train", avg_train_loss, epoch)
         writer.add_scalar("Loss/validation", avg_val_loss, epoch)
         
-        output_dir = f"./model_checkpoints/epoch_{epoch+1}"
+        output_dir = f"./model_checkpoints/{experiment_name}/epoch_{epoch+1}"
         os.makedirs(output_dir, exist_ok=True)
         model.save_pretrained(output_dir)
         processor.save_pretrained(output_dir)
@@ -233,9 +233,9 @@ def train_model(experiment_name, train_loader, val_loader, model, processor, epo
 
 EPOCHS = 120
 LR = 5e-6
-experiment_name = "1.1"
+experiment_name = "1.2"
 
-# train_model(experiment_name, train_loader, val_loader, peft_model, processor, epochs=EPOCHS, lr=LR)
+train_model(experiment_name, train_loader, val_loader, peft_model, processor, epochs=EPOCHS, lr=LR)
 
 
 
@@ -276,13 +276,13 @@ def render_inference_results(model, dataset: DetectionDataset, count: int, outpu
         cv2.imwrite(output_path, image_cv)
 
 
-# Загрузите обученную модель и процессор
-model_checkpoint = "/home/imran-nasyrov/model_checkpoints/epoch_120/"
+# # Загрузите обученную модель и процессор
+# model_checkpoint = "/home/imran-nasyrov/model_checkpoints/epoch_120/"
 
-model = AutoModelForCausalLM.from_pretrained(model_checkpoint, trust_remote_code=True).to(DEVICE)
-processor = AutoProcessor.from_pretrained(model_checkpoint, trust_remote_code=True)
+# model = AutoModelForCausalLM.from_pretrained(model_checkpoint, trust_remote_code=True).to(DEVICE)
+# processor = AutoProcessor.from_pretrained(model_checkpoint, trust_remote_code=True)
 
-output_directory = "./inference_results"
-render_inference_results(model, val_dataset, count=6, output_directory=output_directory)
+# output_directory = "./inference_results"
+# render_inference_results(model, val_dataset, count=6, output_directory=output_directory)
 
 

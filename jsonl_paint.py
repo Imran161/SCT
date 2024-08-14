@@ -11,6 +11,8 @@ os.makedirs(dst_folder, exist_ok=True)
 
 # Пройтись по всем подкаталогам в папке sinusite_jsonl
 for task_folder in os.listdir(src_folder):
+    # if task_folder in "task_sinusite_data_29_11_23_1_st_sin_labeling":
+    #     print("task_folder", task_folder)
     task_path = os.path.join(src_folder, task_folder)
     if not os.path.isdir(task_path):
         continue
@@ -35,6 +37,7 @@ for task_folder in os.listdir(src_folder):
         image_path = os.path.join(images_path, image_filename)
         image = cv2.imread(image_path)
         if image is None:
+            print("image_path", image_path)
             continue
         
         # Получить размеры изображения
@@ -63,4 +66,6 @@ for task_folder in os.listdir(src_folder):
 
         # Сохранить изображение в целевой папке
         dst_image_path = os.path.join(dst_task_path, image_filename)
+
+        os.makedirs(os.path.dirname(dst_image_path), exist_ok=True)
         cv2.imwrite(dst_image_path, image)

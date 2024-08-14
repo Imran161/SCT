@@ -116,7 +116,7 @@ def draw_masks_on_images(json_dir, output_dir):
 
 
 # Specify the input and output directories
-patient_dir = Path("/home/imran-nasyrov/ainur_sct_json/") #1.2.643.5.1.13.13.12.2.77.8252.14110807150508020609090907121401")
+patient_dir = Path("/home/imran-nasyrov/ainur_mrt_json/") 
 output_dir = "/home/imran-nasyrov/output_guts2"
 
 
@@ -124,5 +124,10 @@ output_dir = "/home/imran-nasyrov/output_guts2"
 for patient_folder in patient_dir.iterdir():
     print("patient_folder", patient_folder)
     part = str(patient_folder).split("/")[-1]
-    # if patient_folder.is_dir():
-    visualize_annotations(patient_folder, f"{output_dir}/{part}")
+    
+    try:
+        # if str(patient_folder)== "/home/imran-nasyrov/ainur_mrt_json/mini_5a9e1704-67e25b74-b571b7a6-dd4019db-0389d005":
+        #     print("here")
+        visualize_annotations(patient_folder, f"{output_dir}/{part}")
+    except:
+        pass
