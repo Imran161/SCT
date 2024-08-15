@@ -7,7 +7,7 @@ import csv
 import torch
 from torch.utils.data import DataLoader
 
-from losses import strong_combined_loss, weak_combined_loss
+from losses import strong_combined_loss, weak_combined_loss, global_focus_loss
 
 SMOOTH = 1e-8
 
@@ -201,6 +201,8 @@ class ExperimentSetup:
             criterion = weak_combined_loss
         elif "strong_loss" in experiment_name:
             criterion = strong_combined_loss
+        elif "focus_loss" in experiment_name:
+            criterion = global_focus_loss
         else:
             raise ValueError("Invalid experiment name")
 

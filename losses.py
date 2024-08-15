@@ -146,8 +146,7 @@ def strong_combined_loss(output, target, class_weight, alpha):
     return (loss1 + loss2) / 2
 
 
-def global_focus_loss(label, true_label, mode="ML", global_loss_sum=0, global_loss_numel=0):
-
+def global_focus_loss(label, true_label, global_loss_sum=0, global_loss_numel=0, train_mode=True, mode="ML"):
     smooth=0.00001
    
     if mode == "ML":
@@ -161,14 +160,14 @@ def global_focus_loss(label, true_label, mode="ML", global_loss_sum=0, global_lo
         logged_label = torch.log(label)
         loss = - true_label * logged_label
     
-    global_loss_sum += loss.sum().item()
-    global_loss_numel += loss.numel()
+    if train_mode:
+        global_loss_sum += loss.sum().item()
+        global_loss_numel += loss.numel()
+        
+        pt = torch.exp(loss - global_loss_sum/global_loss_numel)
+        loss = loss*pt
     
-    pt = torch.exp(loss - global_loss_sum/global_loss_numel)
-    loss = loss*pt
     loss_mean = torch.mean(loss)
 
     return loss_mean
 
-сравнить на почках ее с Надо bce, focal без всего, focal с пиксельными с FPN а потом linknet
-новые данные нарезать скинуть Саше в трех проекциях и запустить с kidneys_pat_out_classesс FPN а потом с linknet, а дальше новые лоссы будем использовать

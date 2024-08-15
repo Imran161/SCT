@@ -24,7 +24,7 @@ from transformers import (
     SegformerForSemanticSegmentation,
 )
 
-from coco_classes import sinusite_base_classes, sinusite_pat_classes_3, kidneys_base_classes, kidneys_out_classes
+from coco_classes import sinusite_base_classes, sinusite_pat_classes_3, kidneys_base_classes, kidneys_out_classes, kidneys_pat_out_classes
 from coco_dataloaders import SINUSITE_COCODataLoader
 from metrics import DetectionMetrics
 from sct_val import test_model
@@ -232,13 +232,15 @@ def train_model(
     max_n=3,
     max_k=3,
     use_augmentation=False,
+    loss_type="weak"
 ):
     # Создание объекта SummaryWriter для записи логов
     writer = SummaryWriter(log_dir=f"runs_sinusite/{experiment_name}_logs")
+    # writer = SummaryWriter(log_dir=f"runs_kidneys/{experiment_name}_logs")
     metrics_calculator = DetectionMetrics(mode="ML", num_classes=num_classes)
 
     class_names_dict = {
-        class_info["id"]: class_info["name"] for class_info in sinusite_pat_classes_3 # kidneys_out_classes
+        class_info["id"]: class_info["name"] for class_info in sinusite_pat_classes_3 # kidneys_out_classes или kidneys_pat_out_classes
     }
 
     classes = list(class_names_dict.keys())
@@ -248,6 +250,11 @@ def train_model(
     model = model.to(device)
 
     best_loss = 100
+    
+    global_stats = {
+        "global_loss_sum": 0,
+        "global_loss_numel": 0
+    }
 
     if alpha is not None:
         alpha_no_fon = np.array([arr[1:] for arr in alpha])
@@ -333,7 +340,23 @@ def train_model(
                     outputs = model(images)
                     # outputs = model(pixel_values=images)
                     outputs = torch.sigmoid(outputs)
-                    loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
+                    
+                    if (loss_type == "weak" or loss_type == "strong"):
+                        loss = criterion(outputs, masks, all_class_weights, alpha_no_fon)
+                    elif loss_type == "focus":
+                        loss = criterion(outputs, 
+                                         masks, 
+                                         global_loss_sum=global_stats["global_loss_sum"], 
+                                         global_loss_numel=global_stats["global_loss_numel"],
+                                         train_mode=True,
+                                         mode="ML")
+  
+                        global_stats["global_loss_sum"] += loss.sum().item()
+                        global_stats["global_loss_numel"] += loss.numel()
+
+                    
+                    # было так но я добавил focus loss выше
+                    # loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
 
                     loss.backward()
                     optimizer.step()
@@ -433,7 +456,20 @@ def train_model(
                 # не шум
                 outputs_val = model(images_val)
                 outputs_val = torch.sigmoid(outputs_val)
-                val_loss_sum += criterion(outputs_val, masks_val, None, None).item()
+                
+                if (loss_type == "weak" or loss_type == "strong"):
+                    val_loss_sum += criterion(outputs_val, masks_val, None, None).item()
+                elif loss_type == "focus":
+                    val_loss_sum += criterion(outputs_val, 
+                                              masks_val, 
+                                              global_loss_sum=None, 
+                                              global_loss_numel=None,
+                                              train_mode=False,
+                                              mode="ML").item()
+                    
+                # было так но я добавил focus loss выше
+                # val_loss_sum += criterion(outputs_val, masks_val, None, None).item()
+                
                 val_iou_batch = iou_metric(outputs_val, masks_val, num_classes)
 
                 val_iou_sum += val_iou_batch
@@ -636,7 +672,7 @@ if __name__ == "__main__":
     #     "json_file_path": "/home/imran-nasyrov/json_pochki",
     #     "delete_list": [],
     #     "base_classes": kidneys_base_classes,
-    #     "out_classes": kidneys_out_classes,
+    #     "out_classes": kidneys_out_classes, или kidneys_pat_out_classes
     #     "dataloader": True,
     #     "resize": (512, 512),
     #     "recalculate": False,
@@ -769,7 +805,9 @@ if __name__ == "__main__":
     use_class_weight = True
     use_pixel_weight = True
     use_pixel_opt = True
-    power = "2.34_sinusite_weak"
+    power = "2.34_sinusite_focus"
+    loss_type = power.split("_")[-1]
+    print("loss_type", loss_type)
 
     exp_setup = ExperimentSetup(
         train_loader, total_train, pixel_total_train, batch_size, num_classes
@@ -783,6 +821,7 @@ if __name__ == "__main__":
     ) = exp_setup.setup_experiment(
         use_class_weight, use_pixel_weight, use_pixel_opt, power
     )
+
 
     train_model(
         model,
@@ -802,6 +841,7 @@ if __name__ == "__main__":
         max_n=3,
         max_k=3,
         use_augmentation=False,
+        loss_type=loss_type
     )
 
     model_weight = f"sinusite_best_models/best_{experiment_name}_model.pth"
