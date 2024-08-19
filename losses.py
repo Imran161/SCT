@@ -152,22 +152,39 @@ def global_focus_loss(label, true_label, global_loss_sum=0, global_loss_numel=0,
     if mode == "ML":
         label = F.sigmoid(label)
         label = label+smooth
-        loss = -(true_label * torch.log(label) + (1 - true_label) * torch.log(1 - label))
+        loss_bce = -(true_label * torch.log(label) + (1 - true_label) * torch.log(1 - label))
         
     if mode == "MC":
         label = F.softmax(label)
         label = label+smooth
         logged_label = torch.log(label)
-        loss = - true_label * logged_label
+        loss_bce = - true_label * logged_label
     
     if train_mode:
-        global_loss_sum += loss.sum().item()
-        global_loss_numel += loss.numel()
+        global_loss_sum += loss_bce.sum().item()
+        global_loss_numel += loss_bce.numel()
         
-        pt = torch.exp(loss - global_loss_sum/global_loss_numel)
-        loss = loss*pt
+        pt = torch.exp(loss_bce - global_loss_sum/global_loss_numel)
+        loss = loss_bce*pt
     
     loss_mean = torch.mean(loss)
 
-    return loss_mean
+    return loss_mean, loss_bce
 
+
+def update_global_stats(global_stats, loss_bce, alpha=0.99):
+    """
+    Обновляет глобальные статистики используя скользящее среднее.
+    
+    :param global_stats: словарь с текущими значениями global_loss_sum и global_loss_numel
+    :param loss_bce: текущие значения потерь (тензор)
+    :param alpha: коэффициент скользящего среднего (чем ближе к 1, тем медленнее обновление)
+    :return: обновленные глобальные статистики
+    """
+    new_sum = loss_bce.sum().item()
+    new_numel = loss_bce.numel()
+
+    global_stats["global_loss_sum"] = alpha * global_stats["global_loss_sum"] + (1 - alpha) * new_sum
+    global_stats["global_loss_numel"] = alpha * global_stats["global_loss_numel"] + (1 - alpha) * new_numel
+
+    return global_stats

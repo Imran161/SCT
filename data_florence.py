@@ -405,7 +405,7 @@ with tqdm(total=len(os.listdir(src_folder)), desc="Processing directories") as p
 
             jsonl_data.append({
                 "image": image_filename,
-                "prefix": "<OD>",
+                "prefix": "<OD>", # <OD> было
                 "suffix": suffix
             })
 

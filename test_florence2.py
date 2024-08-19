@@ -8,9 +8,10 @@ import supervision as sv
 from PIL import Image
 import torch
 
-DEVICE = torch.device("cuda:2")
+DEVICE = torch.device("cuda:0")
 
 model_checkpoint = "/home/imran-nasyrov/model_checkpoints/1.1/epoch_120"
+# model_checkpoint = "/home/imran-nasyrov/model_checkpoints/1.2/epoch_2"
 model_id = 'microsoft/Florence-2-large'
 model = AutoModelForCausalLM.from_pretrained(model_checkpoint, trust_remote_code=True).eval().to(DEVICE)
 processor = AutoProcessor.from_pretrained(model_checkpoint, trust_remote_code=True)
@@ -52,8 +53,8 @@ image = Image.open(local_image_path)
 
 # task_prompt = '<CAPTION_TO_PHRASE_GROUNDING>'
 # task_prompt = "<DETAILED_CAPTION>" # {'CAPTION': '\nCT scan of the head and neck of a man with a large tumor in the middle of his head<loc_153><loc_113><loc_912><loc_998>\n'}
-task_prompt = "<CAPTION_TO_PHRASE_GROUNDING>"
-results, modified_image = run_example(task_prompt, text_input="pathology")
+task_prompt = "<OD>"
+results, modified_image = run_example(task_prompt, text_input="")
 print(results)
 
 # OPEN_VOCABULARY_DETECTION короче тоже не рисует то что надо
@@ -110,7 +111,7 @@ def plot_bbox(image, data):
     save_path="test_florence"
     fig.savefig(f"{save_path}/img.jpg", bbox_inches='')
 
-plot_bbox(image, results['<CAPTION_TO_PHRASE_GROUNDING>'])    
+plot_bbox(image, results['<OD>'])    
 # plot_bbox(image, bbox_results)   
 
     

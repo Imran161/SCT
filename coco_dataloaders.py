@@ -1,5 +1,6 @@
 import os
 import random
+import shutil
 
 import cv2
 import numpy as np
@@ -167,32 +168,45 @@ class SINUSITE_COCODataLoader:
         all_val_data = []
 
         count = 0
+        wrong_folder_path = "/home/imran-nasyrov/json_pocki_wrong_folders" ################### это я сделал чтобы перенести косячные папки
+        # и понять какие папки создают ошибки, просто в почках некоторые данные плохие
+        
         for subdir in train_folders:
-            print("subdir train", subdir)
-            sct_coco = self.class_instance(subdir, "train")
+            try:
+                print("subdir train", subdir)
+                sct_coco = self.class_instance(subdir, "train")
 
-            if count == 0:
-                total_train = np.copy(sct_coco.total_train)
-                pixel_total_train = np.copy(sct_coco.pixel_total_train)
-            else:
-                print("sct_coco._total_train", sct_coco.total_train)
-                total_train += sct_coco.total_train
-                pixel_total_train += sct_coco.pixel_total_train
+                if count == 0:
+                    total_train = np.copy(sct_coco.total_train)
+                    pixel_total_train = np.copy(sct_coco.pixel_total_train)
+                else:
+                    print("sct_coco._total_train", sct_coco.total_train)
+                    total_train += sct_coco.total_train
+                    pixel_total_train += sct_coco.pixel_total_train
 
-            train_dataset = Subset(sct_coco, sct_coco.train_list)
-            all_train_data.append(train_dataset)
+                train_dataset = Subset(sct_coco, sct_coco.train_list)
+                all_train_data.append(train_dataset)
 
-            count += 1
-
+                count += 1
+            except Exception as e:
+                print(f"Error processing folder {subdir}: {e}")
+                # wrong_subdir_path = os.path.join(wrong_folder_path, os.path.basename(subdir))
+                # shutil.move(subdir, wrong_subdir_path)
+            
         for subdir in val_folders:
-            print("subdir val", subdir)
-            sct_coco = self.class_instance(subdir, "val")
+            try:
+                print("subdir val", subdir)
+                sct_coco = self.class_instance(subdir, "val")
 
-            val_dataset = Subset(sct_coco, sct_coco.val_list)
-            all_val_data.append(val_dataset)
+                val_dataset = Subset(sct_coco, sct_coco.val_list)
+                all_val_data.append(val_dataset)
 
-            count += 1
-
+                count += 1
+            except Exception as e:
+                print(f"Error processing folder {subdir}: {e}")
+                # wrong_subdir_path = os.path.join(wrong_folder_path, os.path.basename(subdir))
+                # shutil.move(subdir, wrong_subdir_path)
+            
         concat_train_data = ConcatDataset(all_train_data)
         concat_val_data = ConcatDataset(all_val_data)
 

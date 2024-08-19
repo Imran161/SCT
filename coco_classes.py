@@ -87,7 +87,7 @@ kidneys_base_classes = [
 
 
 kidneys_out_classes = [
-     {
+    {
         "name": "pathology",
         "id": 1,
         "summable_masks": [9,10,11,12],
@@ -97,14 +97,14 @@ kidneys_out_classes = [
     {
         "name": "right_kidney_ID1",
         "id": 2,
-        "summable_masks": [1],
+        "summable_masks": [1,2,3,4],
         "subtractive_masks": [],
     },
     
     {
         "name": "left_kidney_ID5",
         "id": 3,
-        "summable_masks": [5],
+        "summable_masks": [5,6,7,8],
         "subtractive_masks": [],
     },
     
@@ -127,16 +127,10 @@ kidneys_pat_out_classes = [
     },
     
     {
-        "name": "cyst_ID11",
+        "name": "cyst_ID11_and_abscess_ID12",
         "id": 3,
-        "summable_masks": [11],
+        "summable_masks": [11, 12],
         "subtractive_masks": [],
     },
-     
-    {
-        "name": "abscess_ID12",
-        "id": 4,
-        "summable_masks": [12],
-        "subtractive_masks": [],
-    },
-]
+       
+] 

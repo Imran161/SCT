@@ -30,6 +30,7 @@ from metrics import DetectionMetrics
 from sct_val import test_model
 from transforms import SegTransform
 from utils import ExperimentSetup, iou_metric, save_best_metrics_to_csv, set_seed
+from losses import update_global_stats
 
 set_seed(64)
 
@@ -235,12 +236,12 @@ def train_model(
     loss_type="weak"
 ):
     # Создание объекта SummaryWriter для записи логов
-    writer = SummaryWriter(log_dir=f"runs_sinusite/{experiment_name}_logs")
-    # writer = SummaryWriter(log_dir=f"runs_kidneys/{experiment_name}_logs")
+    # writer = SummaryWriter(log_dir=f"runs_sinusite/{experiment_name}_logs")
+    writer = SummaryWriter(log_dir=f"runs_kidneys/{experiment_name}_logs")
     metrics_calculator = DetectionMetrics(mode="ML", num_classes=num_classes)
 
     class_names_dict = {
-        class_info["id"]: class_info["name"] for class_info in sinusite_pat_classes_3 # kidneys_out_classes или kidneys_pat_out_classes
+        class_info["id"]: class_info["name"] for class_info in kidneys_pat_out_classes # sinusite_pat_classes_3 или kidneys_pat_out_classes
     }
 
     classes = list(class_names_dict.keys())
@@ -344,15 +345,16 @@ def train_model(
                     if (loss_type == "weak" or loss_type == "strong"):
                         loss = criterion(outputs, masks, all_class_weights, alpha_no_fon)
                     elif loss_type == "focus":
-                        loss = criterion(outputs, 
+                        loss, loss_bce = criterion(outputs, 
                                          masks, 
                                          global_loss_sum=global_stats["global_loss_sum"], 
                                          global_loss_numel=global_stats["global_loss_numel"],
                                          train_mode=True,
                                          mode="ML")
   
-                        global_stats["global_loss_sum"] += loss.sum().item()
-                        global_stats["global_loss_numel"] += loss.numel()
+                        # global_stats["global_loss_sum"] += loss_bce.sum().item()
+                        # global_stats["global_loss_numel"] += loss_bce.numel()
+                        global_stats = update_global_stats(global_stats, loss_bce)
 
                     
                     # было так но я добавил focus loss выше
@@ -541,8 +543,8 @@ def train_model(
                 },
             }
 
-            best_model_path = "sinusite_best_models"
-            # best_model_path = "kidneys_best_models"
+            # best_model_path = "sinusite_best_models"
+            best_model_path = "kidneys_best_models"
             if not os.path.exists(best_model_path):
                 os.makedirs(best_model_path)
 
@@ -566,8 +568,8 @@ def train_model(
         },
     }
 
-    last_model_path = "sinusite_last_models"
-    # last_model_path = "kidneys_last_models"
+    # last_model_path = "sinusite_last_models"
+    last_model_path = "kidneys_last_models"
     if not os.path.exists(last_model_path):
         os.makedirs(last_model_path)
 
@@ -652,32 +654,32 @@ if __name__ == "__main__":
     # path = "/home/imran-nasyrov/sinusite_json_data"
     # subdirectories_list = get_direct_subdirectories(path)
 
-    batch_size = 4
-    num_classes = 2
+    batch_size = 24
+    num_classes = 3
 
     # sinusite
-    params = {
-        "json_file_path": "/home/imran-nasyrov/sinusite_json_data",
-        "delete_list": [],
-        "base_classes": sinusite_base_classes,
-        "out_classes": sinusite_pat_classes_3,
-        "dataloader": True,
-        "resize": (1024, 1024),
-        "recalculate": False,
-        "delete_null": False,
-    }
-    
-    # kidneys
     # params = {
-    #     "json_file_path": "/home/imran-nasyrov/json_pochki",
+    #     "json_file_path": "/home/imran-nasyrov/sinusite_json_data",
     #     "delete_list": [],
-    #     "base_classes": kidneys_base_classes,
-    #     "out_classes": kidneys_out_classes, или kidneys_pat_out_classes
+    #     "base_classes": sinusite_base_classes,
+    #     "out_classes": sinusite_pat_classes_3,
     #     "dataloader": True,
-    #     "resize": (512, 512),
+    #     "resize": (1024, 1024),
     #     "recalculate": False,
     #     "delete_null": False,
     # }
+    
+    # kidneys
+    params = {
+        "json_file_path": "/home/imran-nasyrov/json_pochki",
+        "delete_list": [],
+        "base_classes": kidneys_base_classes,
+        "out_classes": kidneys_pat_out_classes, #kidneys_out_classes или kidneys_pat_out_classes
+        "dataloader": True,
+        "resize": (512, 512),
+        "recalculate": False,
+        "delete_null": False,
+    }
 
     coco_dataloader = SINUSITE_COCODataLoader(params)
 
@@ -706,11 +708,11 @@ if __name__ == "__main__":
     print("len val_loader", len(val_loader))
     print("len train_loader", len(train_loader))
 
-    device = torch.device("cuda:1")
+    device = torch.device("cuda:2")
     print(device)
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
 
-    model = smp.PAN(
+    model = smp.Linknet(
         encoder_name="efficientnet-b7",
         encoder_weights="imagenet",
         in_channels=1,  # +num_classes для диффузии
@@ -802,10 +804,11 @@ if __name__ == "__main__":
     optimizer = Adam(model.parameters(), lr=learning_rate)
     lr_sched = None
 
-    use_class_weight = True
-    use_pixel_weight = True
-    use_pixel_opt = True
-    power = "2.34_sinusite_focus"
+    use_class_weight = False
+    use_pixel_weight = False
+    use_pixel_opt = False
+    power = "1.6_kidneys_weak" # focus или weak
+    
     loss_type = power.split("_")[-1]
     print("loss_type", loss_type)
 
@@ -822,6 +825,7 @@ if __name__ == "__main__":
         use_class_weight, use_pixel_weight, use_pixel_opt, power
     )
 
+    print("criterion", criterion)
 
     train_model(
         model,

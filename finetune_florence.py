@@ -27,7 +27,7 @@ from PIL import Image
 
 CHECKPOINT = "microsoft/Florence-2-base-ft"
 REVISION = 'refs/pr/6'
-DEVICE = torch.device("cuda:2")
+DEVICE = torch.device("cuda:0")
 
 model = AutoModelForCausalLM.from_pretrained(CHECKPOINT, trust_remote_code=True, revision=REVISION).to(DEVICE)
 processor = AutoProcessor.from_pretrained(CHECKPOINT, trust_remote_code=True, revision=REVISION)
