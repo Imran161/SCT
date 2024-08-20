@@ -146,7 +146,7 @@ def strong_combined_loss(output, target, class_weight, alpha):
     return (loss1 + loss2) / 2
 
 
-def global_focus_loss(label, true_label, global_loss_sum=0, global_loss_numel=0, train_mode=True, mode="ML"):
+def global_focus_loss(label, true_label, global_loss_sum, global_loss_numel, train_mode=True, mode="ML"):
     smooth=0.00001
    
     if mode == "ML":
@@ -166,10 +166,12 @@ def global_focus_loss(label, true_label, global_loss_sum=0, global_loss_numel=0,
         
         pt = torch.exp(loss_bce - global_loss_sum/global_loss_numel)
         loss = loss_bce*pt
+        loss_mean = torch.mean(loss)
     
-    loss_mean = torch.mean(loss)
+    else:
+        loss_mean = torch.mean(loss_bce)
 
-    return loss_mean, loss_bce
+    return loss_mean, global_loss_sum, global_loss_numel
 
 
 def update_global_stats(global_stats, loss_bce, alpha=0.99):
@@ -188,3 +190,5 @@ def update_global_stats(global_stats, loss_bce, alpha=0.99):
     global_stats["global_loss_numel"] = alpha * global_stats["global_loss_numel"] + (1 - alpha) * new_numel
 
     return global_stats
+
+

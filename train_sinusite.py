@@ -253,8 +253,8 @@ def train_model(
     best_loss = 100
     
     global_stats = {
-        "global_loss_sum": 0,
-        "global_loss_numel": 0
+        "global_loss_sum": torch.tensor(0.0, dtype=torch.double),
+        "global_loss_numel": torch.tensor(0.0, dtype=torch.double)
     }
 
     if alpha is not None:
@@ -283,6 +283,7 @@ def train_model(
         val_iou_sum = torch.zeros(num_classes)
 
         n = 0
+############################
         with tqdm(
             total=len(train_loader),
             desc=f"Epoch {epoch + 1}/{num_epochs}",
@@ -345,7 +346,7 @@ def train_model(
                     if (loss_type == "weak" or loss_type == "strong"):
                         loss = criterion(outputs, masks, all_class_weights, alpha_no_fon)
                     elif loss_type == "focus":
-                        loss, loss_bce = criterion(outputs, 
+                        loss, global_loss_sum, global_loss_numel = criterion(outputs, 
                                          masks, 
                                          global_loss_sum=global_stats["global_loss_sum"], 
                                          global_loss_numel=global_stats["global_loss_numel"],
@@ -354,9 +355,17 @@ def train_model(
   
                         # global_stats["global_loss_sum"] += loss_bce.sum().item()
                         # global_stats["global_loss_numel"] += loss_bce.numel()
-                        global_stats = update_global_stats(global_stats, loss_bce)
+                        
+                        global_stats["global_loss_sum"] = global_loss_sum
+                        global_stats["global_loss_numel"] = global_loss_numel
+                        
+                        
+                        # global_stats = update_global_stats(global_stats, loss_bce)
 
-                    
+                        # +=global_stats["global_loss_sum"] / (k*a)
+                        # k+=1
+                        # float64 сделать чтобы без переполнения была 
+
                     # было так но я добавил focus loss выше
                     # loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
 
@@ -426,7 +435,7 @@ def train_model(
         print(
             f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {train_loss_avg}, Train IoU: {train_iou_avg}"
         )
-
+###############################################################
         # Валидация
         model.eval()
         with torch.no_grad():
@@ -462,12 +471,13 @@ def train_model(
                 if (loss_type == "weak" or loss_type == "strong"):
                     val_loss_sum += criterion(outputs_val, masks_val, None, None).item()
                 elif loss_type == "focus":
-                    val_loss_sum += criterion(outputs_val, 
+                    val_loss, _ = criterion(outputs_val, 
                                               masks_val, 
                                               global_loss_sum=None, 
                                               global_loss_numel=None,
                                               train_mode=False,
-                                              mode="ML").item()
+                                              mode="ML")
+                    val_loss_sum += val_loss.item()
                     
                 # было так но я добавил focus loss выше
                 # val_loss_sum += criterion(outputs_val, masks_val, None, None).item()
@@ -708,7 +718,7 @@ if __name__ == "__main__":
     print("len val_loader", len(val_loader))
     print("len train_loader", len(train_loader))
 
-    device = torch.device("cuda:2")
+    device = torch.device("cuda:1")
     print(device)
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
 
@@ -807,7 +817,7 @@ if __name__ == "__main__":
     use_class_weight = False
     use_pixel_weight = False
     use_pixel_opt = False
-    power = "1.6_kidneys_weak" # focus или weak
+    power = "1.5_kidneys_focus" # focus или weak
     
     loss_type = power.split("_")[-1]
     print("loss_type", loss_type)

@@ -9,7 +9,9 @@ RUN apk add --no-cache \
     wget \
     build-base \
     ripgrep \
-    lazygit
+    lazygit \
+    python3 \
+    py3-pip
 
 # Создаем рабочую директорию
 WORKDIR /home/lazyvimuser

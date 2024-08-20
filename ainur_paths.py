@@ -1,10 +1,10 @@
 import os
+from shutil import copy
+
 import cv2
 import numpy as np
-from shutil import copy
 from tqdm import tqdm
-import csv
-import concurrent.futures
+
 
 def get_all_files(directory):
     all_files = []
@@ -34,10 +34,10 @@ def get_slice_number(file):
     # slice_number = slice[0]# slice[3]  # raw
     # # если по raw сплитить то одна папка получается
     # # по 04.07.22 всего две папки
-    
+
     # старый желудок
     # вот так попробую чтобы было 04.07.22_Размеченные_22.2.4739
-    
+
     # новый желужок
     # file /mnt/datastore/WRITE_ACCESS_DIR/patho/cropped/stomach/1/256/train/29.01.23_Датасеты биопсии C16_1002989_1002989_level_0_67.hdf5
     parts = file.split("/")
@@ -45,7 +45,9 @@ def get_slice_number(file):
     # first_number = slice[4]
     # было так для старых данных по желудку теперь сделаю строкой выше ######################################################################
     # first_number = "_".join(slice[4:-3])  # для старого желудка так было
-    first_number = "_".join(slice[:-3]) # для нового так 29.01.23_Датасеты биопсии C16_1002989_1002989
+    first_number = "_".join(
+        slice[:-3]
+    )  # для нового так 29.01.23_Датасеты биопсии C16_1002989_1002989
     slice_number = slice[-2]  # Берем предпоследний элемент
 
     return first_number, slice_number
@@ -65,11 +67,11 @@ def draw_image_from_polygon(polygon, image_shape):
     return image
 
 
-
 # Ваши существующие функции идут здесь...
 
+
 def process_files(all_files, new_dirs):
-    with tqdm(total=len(all_files), desc=f"Copying files") as pbar:
+    with tqdm(total=len(all_files), desc="Copying files") as pbar:
         for j in all_files:
             first_number, slice_number = get_slice_number(j)
             folder_path = f"{new_dirs}/{first_number}"
@@ -78,59 +80,56 @@ def process_files(all_files, new_dirs):
                 os.makedirs(folder_path)
 
             copy(j, folder_path)
-            pbar.update(1) 
+            pbar.update(1)
 
 
 if __name__ == "__main__":
-    
-    # то же самое по времени получилось 
-    
+    # то же самое по времени получилось
+
     # new_dirs = "/home/imran-nasyrov/sct_project/sct_data/ainur_paths"
     # directory_path = "ainur_data"
     # subdirectories_list = get_direct_subdirectories(directory_path)
 
     # num_cores = os.cpu_count()
-    # print("Количество доступных ядер процессора:", num_cores)    
-    
+    # print("Количество доступных ядер процессора:", num_cores)
+
     # with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
     #     futures = []
     #     for subdir in subdirectories_list:
     #         all_files = get_all_files(subdir)
-          
+
     #         futures.append(executor.submit(process_files, all_files, new_dirs))
-            
+
     #     for future in concurrent.futures.as_completed(futures):
     #         future.result()
-            
-         
-# было так но поопробую с тредами    
-#########################    
+
+    # было так но поопробую с тредами
+    #########################
     # new_dirs = "/home/imran-nasyrov/sct_project/sct_data/ainur_paths"
     # new_dirs = "/mnt/datastore/Medical/guts_paths"
     new_dirs = "/mnt/datastore/Medical/stomach_paths"
-    
 
     # тут убрал полный путь чтобы пути к файлам были короче
     # directory_path = "ainur_data"
-    # directory_path = "/mnt/datastore/WRITE_ACCESS_DIR/patho/cropped/colon/0/256/" # кишки 
-    directory_path = "/mnt/datastore/WRITE_ACCESS_DIR/patho/cropped/stomach/1/256/" # желудок 
+    # directory_path = "/mnt/datastore/WRITE_ACCESS_DIR/patho/cropped/colon/0/256/" # кишки
+    directory_path = (
+        "/mnt/datastore/WRITE_ACCESS_DIR/patho/cropped/stomach/1/256/"  # желудок
+    )
     subdirectories_list = get_direct_subdirectories(directory_path)
-    
+
     # print("subdirectories_list", subdirectories_list) # тут test, train, validate
     for i in subdirectories_list:
         all_files = get_all_files(i)
-        
+
         with tqdm(total=len(all_files), desc="Copying files") as pbar:
             # print("all_files", all_files)
             for j in all_files:
                 # пока сделаю чтобы у каждой картинки был свой json чтобы Сане отправить
-               
 
                 first_number, slice_number = get_slice_number(j)
                 # print("first_number", first_number)
                 # print("slice_number", slice_number)
 
-               
                 folder_path = f"{new_dirs}/{first_number}"
 
                 # Проверяем существование папки
@@ -139,11 +138,10 @@ if __name__ == "__main__":
                     os.makedirs(folder_path)
                     # print(f"Папка {folder_path} успешно создана")
                 # else:
-                    # print(f"Папка {folder_path} уже существует")
-                    
+                # print(f"Папка {folder_path} уже существует")
+
                 copy(j, folder_path)
-                    
-        
+
                 pbar.update(1)
 ################################
 # а были вот такие в вале, трейн я тогда не видел
@@ -152,7 +150,7 @@ if __name__ == "__main__":
 # home_ainur-karimov_data_raw_29.01.23_Датасеты биопсии C16_13323 (22.1.3015)_13323 (22.1.3015)_level_0_1484.hdf5
 # /mnt/datastore/WRITE_ACCESS_DIR/patho/cropped/stomach/1/256/train/29.01.23_Датасеты биопсии C16_1002931_1002931_level_0_15.hdf5
 
-# щас данные новые и вот такие в трейне есть 
+# щас данные новые и вот такие в трейне есть
 # raw_24_data_кишечник_100062-5_level_0_5
 # raw_24_data_кишечник_100541-5_level_0_68
 
@@ -166,7 +164,7 @@ if __name__ == "__main__":
 # 04.07.22_
 # Размеченные_
 # 22.2.4739_
-# level_0_22.hdf5 
+# level_0_22.hdf5
 
 
 # это нормальный код, работает
