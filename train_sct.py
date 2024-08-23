@@ -7,7 +7,7 @@ import numpy as np
 import segmentation_models_pytorch as smp
 import torch
 from sklearn.exceptions import UndefinedMetricWarning
-from torch.optim import Adam, AdamW
+from torch.optim import Adam
 from torch.utils.data import ConcatDataset, DataLoader, Subset
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm

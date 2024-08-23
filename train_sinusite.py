@@ -4,33 +4,22 @@ import warnings
 
 import cv2
 import numpy as np
-import pandas as pd
 import segmentation_models_pytorch as smp
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 from sklearn.exceptions import UndefinedMetricWarning
 from torch.optim import Adam
 from torch.utils.data._utils.collate import default_collate
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-from transformers import (
-    AutoImageProcessor,
-    AutoModelForCausalLM,
-    AutoModelForImageSegmentation,
-    AutoProcessor,
-    SegformerConfig,
-    SegformerFeatureExtractor,
-    SegformerForSemanticSegmentation,
-)
 
-from coco_classes import sinusite_base_classes, sinusite_pat_classes_3, kidneys_base_classes, kidneys_out_classes, kidneys_pat_out_classes
+from coco_classes import (
+    kidneys_base_classes,
+    kidneys_pat_out_classes,
+)
 from coco_dataloaders import SINUSITE_COCODataLoader
 from metrics import DetectionMetrics
-from sct_val import test_model
 from transforms import SegTransform
 from utils import ExperimentSetup, iou_metric, save_best_metrics_to_csv, set_seed
-from losses import update_global_stats
 
 set_seed(64)
 
@@ -233,7 +222,7 @@ def train_model(
     max_n=3,
     max_k=3,
     use_augmentation=False,
-    loss_type="weak"
+    loss_type="weak",
 ):
     # Создание объекта SummaryWriter для записи логов
     # writer = SummaryWriter(log_dir=f"runs_sinusite/{experiment_name}_logs")
@@ -241,8 +230,11 @@ def train_model(
     metrics_calculator = DetectionMetrics(mode="ML", num_classes=num_classes)
 
     class_names_dict = {
-        class_info["id"]: class_info["name"] for class_info in kidneys_pat_out_classes # sinusite_pat_classes_3 или kidneys_pat_out_classes
+        class_info["id"]: class_info["name"]
+        # sinusite_pat_classes_3 или kidneys_pat_out_classes
+        for class_info in kidneys_pat_out_classes
     }
+    print("class_names_dict", class_names_dict)
 
     classes = list(class_names_dict.keys())
     weight_opt = Weight_opt_class(criterion, classes, None)
@@ -251,10 +243,10 @@ def train_model(
     model = model.to(device)
 
     best_loss = 100
-    
+
     global_stats = {
         "global_loss_sum": torch.tensor(0.0, dtype=torch.double),
-        "global_loss_numel": torch.tensor(0.0, dtype=torch.double)
+        "global_loss_numel": torch.tensor(0.0, dtype=torch.double),
     }
 
     if alpha is not None:
@@ -283,117 +275,124 @@ def train_model(
         val_iou_sum = torch.zeros(num_classes)
 
         n = 0
-############################
+        ############################
         with tqdm(
             total=len(train_loader),
             desc=f"Epoch {epoch + 1}/{num_epochs}",
             unit="batch",
         ) as pbar:
-                for batch_idx, train_batch in enumerate(train_loader):
-                    optimizer.zero_grad()
+            for batch_idx, train_batch in enumerate(train_loader):
+                optimizer.zero_grad()
 
-                    # images, masks = train_batch
-                    # # print("masks 0", masks[0][2]) тут по ходу не фон нулевой, там не только единицы
-                    # masks = masks[:, 1:, :, :].to(device)
-                    # Используем только пиксельные значения
-                    # pixel_values = images["pixel_values"].to(device)
-                    # input_ids = images["input_ids"].to(device)
-                    # print("input_ids shape", input_ids.shape)
-                    # print("pixel_values", pixel_values)
+                # images, masks = train_batch
+                # # print("masks 0", masks[0][2]) тут по ходу не фон нулевой, там не только единицы
+                # masks = masks[:, 1:, :, :].to(device)
+                # Используем только пиксельные значения
+                # pixel_values = images["pixel_values"].to(device)
+                # input_ids = images["input_ids"].to(device)
+                # print("input_ids shape", input_ids.shape)
+                # print("pixel_values", pixel_values)
 
-                    images = train_batch["images"].to(device)
-                    masks = train_batch["masks"][:, 1:, :, :].to(device)
-                    
-                    # print("images shape", images.shape)
-                    # print("masks shape", masks.shape)
-                    # unique_values = torch.unique(masks)
-                    # num_unique_values = unique_values.numel()
-                    # print("Уникальные значения:", unique_values)
-                    # print("Количество уникальных значений:", num_unique_values)
+                images = train_batch["images"].to(device)
+                masks = train_batch["masks"][:, 1:, :, :].to(device)
 
-                    if use_augmentation:
-                        images, masks = seg_transform.apply_transform(images, masks)
-                        # save_images(images, masks, epoch, batch_idx, save_dir="transforms")
+                # print("images shape", images.shape)
+                # print("masks shape", masks.shape)
+                # unique_values = torch.unique(masks)
+                # num_unique_values = unique_values.numel()
+                # print("Уникальные значения:", unique_values)
+                # print("Количество уникальных значений:", num_unique_values)
 
-                    # шум
-                    # шум к маске
-                    # k_values = np.arange(0, 10.1, 0.1)
-                    # combined = add_noise_and_combine(
-                    #     images, masks, epoch, num_epochs, k_values, batch_idx, num_batches
-                    # )
+                if use_augmentation:
+                    images, masks = seg_transform.apply_transform(images, masks)
+                    # save_images(images, masks, epoch, batch_idx, save_dir="transforms")
 
-                    if all_class_weights is not None:
-                        all_weights_no_fon = [x[1:] for x in all_class_weights]
-                    else:
-                        all_weights_no_fon = None
+                # шум
+                # шум к маске
+                # k_values = np.arange(0, 10.1, 0.1)
+                # combined = add_noise_and_combine(
+                #     images, masks, epoch, num_epochs, k_values, batch_idx, num_batches
+                # )
 
-                    # шум
-                    # outputs = model(
-                    #     combined
-                    # )  # 2 канала на выходе 3 на входе (num_classes + 1)
-                    # outputs = torch.tanh(outputs)
-                    # outputs = torch.sigmoid(outputs)
+                if all_class_weights is not None:
+                    all_weights_no_fon = [x[1:] for x in all_class_weights]
+                else:
+                    all_weights_no_fon = None
 
-                    # Вычитаем предсказанный шум из исходного изображения
-                    # outputs = (combined[:, 1:, :, :] - outputs + 1) / 3.0
-                    # loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
+                # тут n сделаю
+                n += 1
+                
+                # шум
+                # outputs = model(
+                #     combined
+                # )  # 2 канала на выходе 3 на входе (num_classes + 1)
+                # outputs = torch.tanh(outputs)
+                # outputs = torch.sigmoid(outputs)
 
-                    # не шум
-                    outputs = model(images)
-                    # outputs = model(pixel_values=images)
-                    outputs = torch.sigmoid(outputs)
-                    
-                    if (loss_type == "weak" or loss_type == "strong"):
-                        loss = criterion(outputs, masks, all_class_weights, alpha_no_fon)
-                    elif loss_type == "focus":
-                        loss, global_loss_sum, global_loss_numel = criterion(outputs, 
-                                         masks, 
-                                         global_loss_sum=global_stats["global_loss_sum"], 
-                                         global_loss_numel=global_stats["global_loss_numel"],
-                                         train_mode=True,
-                                         mode="ML")
-  
-                        # global_stats["global_loss_sum"] += loss_bce.sum().item()
-                        # global_stats["global_loss_numel"] += loss_bce.numel()
-                        
-                        global_stats["global_loss_sum"] = global_loss_sum
-                        global_stats["global_loss_numel"] = global_loss_numel
-                        
-                        
-                        # global_stats = update_global_stats(global_stats, loss_bce)
+                # Вычитаем предсказанный шум из исходного изображения
+                # outputs = (combined[:, 1:, :, :] - outputs + 1) / 3.0
+                # loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
 
-                        # +=global_stats["global_loss_sum"] / (k*a)
-                        # k+=1
-                        # float64 сделать чтобы без переполнения была 
+                # не шум
+                outputs = model(images)
+                # outputs = model(pixel_values=images)
+                outputs = torch.sigmoid(outputs)
 
-                    # было так но я добавил focus loss выше
-                    # loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
-
-                    loss.backward()
-                    optimizer.step()
-                    train_loss_sum += loss.item()
-
-                    # Сохранение изображений и масок
-                    # save_images(images, combined[:, 1:, :, :], epoch, batch_idx)
-
-                    # шум
-                    # train_iou_batch = iou_metric(outputs, masks, num_classes)
-                    # не шум
-                    train_iou_batch = iou_metric(outputs, masks, num_classes)
-                    train_iou_sum += train_iou_batch
-
-                    # для трейна метрики тоже посчитаю
-                    metrics_calculator.update_counter(
+                if loss_type == "weak" or loss_type == "strong":
+                    loss = criterion(outputs, masks, all_class_weights, alpha_no_fon)
+                elif loss_type == "focus":
+                    loss, global_loss_sum, global_loss_numel = criterion(
+                        outputs,
                         masks,
-                        outputs,  # outputs не шум
-                    )  # , advanced_metrics=True)
+                        global_loss_sum=global_stats["global_loss_sum"],
+                        global_loss_numel=global_stats["global_loss_numel"],
+                        train_mode=True,
+                        mode="ML",
+                    )
 
-                    # скользящее среднее
-                    n += 1
-                    pbar.set_postfix(loss=train_loss_sum / n)
-                    pbar.update(1)
+                    # global_stats["global_loss_sum"] += loss_bce.sum().item()
+                    # global_stats["global_loss_numel"] += loss_bce.numel()
 
-                    # оптимизация весов
+                    global_stats["global_loss_sum"] = global_loss_sum / n
+                    global_stats["global_loss_numel"] = global_loss_numel / n
+
+                    # global_stats = update_global_stats(global_stats, loss_bce)
+
+                    # +=global_stats["global_loss_sum"] / (k*a)
+                    # k+=1
+                    # float64 сделать чтобы без переполнения была
+
+                elif loss_type == "bce":
+                    loss = criterion(outputs, masks)
+
+                # было так но я добавил focus loss выше
+                # loss = criterion(outputs, masks, all_weights_no_fon, alpha_no_fon)
+
+                loss.backward()
+                optimizer.step()
+                train_loss_sum += loss.item()
+
+                # Сохранение изображений и масок
+                # save_images(images, combined[:, 1:, :, :], epoch, batch_idx)
+
+                # шум
+                # train_iou_batch = iou_metric(outputs, masks, num_classes)
+                # не шум
+                train_iou_batch = iou_metric(outputs, masks, num_classes)
+                train_iou_sum += train_iou_batch
+
+                # для трейна метрики тоже посчитаю
+                metrics_calculator.update_counter(
+                    masks,
+                    outputs,  # outputs не шум
+                )  # , advanced_metrics=True)
+
+                # скользящее среднее
+                # n += 1
+                pbar.set_postfix(loss=train_loss_sum / n)
+                pbar.update(1)
+
+                # оптимизация весов
 
         train_loss_avg = train_loss_sum / len(train_loader)
 
@@ -421,28 +420,41 @@ def train_model(
                     for i, val in enumerate(value):
                         class_name = class_names_dict[i + 1]
                         # writer.add_scalar(f"Train/{key}/Class_{i}", val.item(), epoch)
-                        writer.add_scalar(f"Train/{key}/{class_name}", val.item(), epoch)
+                        writer.add_scalar(
+                            f"Train/{key}/{class_name}", val.item(), epoch
+                        )
                 else:
                     writer.add_scalar(f"Train/{key}", value.item(), epoch)
 
         writer.add_scalar("Learning Rate", optimizer.param_groups[0]["lr"], epoch)
 
-        print("alpha_no_fon", alpha_no_fon)
+        if alpha_no_fon is not None:
+            # print("alpha_no_fon", alpha_no_fon)
+            print("class", class_names_dict["1"])
+            print("alpha_no_fon pixel_pos_weights", alpha_no_fon[0])
+            print("class", class_names_dict["2"])
+            print("alpha_no_fon pixel_neg_weights", alpha_no_fon[1])
+            print("class", class_names_dict["3"])
+            print("alpha_no_fon pixel_class_weights", alpha_no_fon[2])
+        
+        print("class_names_dict", class_names_dict)
+        
         # оптимизация пиксельных весов
         if use_opt_pixel_weight:
             alpha_no_fon = weight_opt.opt_pixel_weight(train_metrics, alpha_no_fon)
 
         print(
-            f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {train_loss_avg}, Train IoU: {train_iou_avg}"
+            f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {
+                train_loss_avg}, Train IoU: {train_iou_avg}"
         )
-###############################################################
+        ###############################################################
         # Валидация
         model.eval()
         with torch.no_grad():
             for val_batch in val_loader:
                 images_val = val_batch["images"].to(device)
                 masks_val = (
-                    val_batch["masks"][:, 1:].to(device)#.float()
+                    val_batch["masks"][:, 1:].to(device)  # .float()
                 )  # float() для шума добавил
 
                 # шум
@@ -467,28 +479,34 @@ def train_model(
                 # не шум
                 outputs_val = model(images_val)
                 outputs_val = torch.sigmoid(outputs_val)
-                
-                if (loss_type == "weak" or loss_type == "strong"):
+
+                if loss_type == "weak" or loss_type == "strong":
                     val_loss_sum += criterion(outputs_val, masks_val, None, None).item()
+                 
                 elif loss_type == "focus":
-                    val_loss, _ = criterion(outputs_val, 
-                                              masks_val, 
-                                              global_loss_sum=None, 
-                                              global_loss_numel=None,
-                                              train_mode=False,
-                                              mode="ML")
+                    val_loss, _, _ = criterion(
+                        outputs_val,
+                        masks_val,
+                        global_loss_sum=None,
+                        global_loss_numel=None,
+                        train_mode=False,
+                        mode="ML",
+                    )
                     val_loss_sum += val_loss.item()
-                    
+
+                elif loss_type == "bce":
+                    val_loss_sum += criterion(outputs_val, masks_val).item()
+
                 # было так но я добавил focus loss выше
                 # val_loss_sum += criterion(outputs_val, masks_val, None, None).item()
-                
+
                 val_iou_batch = iou_metric(outputs_val, masks_val, num_classes)
 
                 val_iou_sum += val_iou_batch
 
                 metrics_calculator.update_counter(
                     masks_val,
-                    outputs_val # не шум
+                    outputs_val,  # не шум
                     # corrected_masks_val,  # шум
                 )  # advanced_metrics=True)
 
@@ -500,7 +518,8 @@ def train_model(
             val_iou_avg = val_iou_sum / len(val_loader)
 
         print(
-            f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {train_loss_avg}, Val Loss: {val_loss_avg},  Val IoU: {val_iou_avg}"
+            f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {
+                train_loss_avg}, Val Loss: {val_loss_avg},  Val IoU: {val_iou_avg}"
         )
 
         if lr_sched is not None:
@@ -584,7 +603,9 @@ def train_model(
         os.makedirs(last_model_path)
 
     torch.save(
-        model.state_dict(), f"{last_model_path}/last_{experiment_name}_model.pth"
+        model.state_dict(),
+        f"{
+            last_model_path}/last_{experiment_name}_model.pth",
     )
 
     last_csv_file = f"{last_model_path}/last_metrics.csv"
@@ -678,13 +699,14 @@ if __name__ == "__main__":
     #     "recalculate": False,
     #     "delete_null": False,
     # }
-    
+
     # kidneys
     params = {
         "json_file_path": "/home/imran-nasyrov/json_pochki",
         "delete_list": [],
         "base_classes": kidneys_base_classes,
-        "out_classes": kidneys_pat_out_classes, #kidneys_out_classes или kidneys_pat_out_classes
+        # kidneys_out_classes или kidneys_pat_out_classes
+        "out_classes": kidneys_pat_out_classes,
         "dataloader": True,
         "resize": (512, 512),
         "recalculate": False,
@@ -701,15 +723,12 @@ if __name__ == "__main__":
         list_of_name_out_classes,
     ) = coco_dataloader.make_dataloaders(batch_size=batch_size, train_val_ratio=0.8)
 
-
     # for batch_idx, train_batch in enumerate(train_loader):
     #     print(f"Batch {batch_idx}:")
     #     for i, item in enumerate(train_batch["images"]):
     #         print(f"  Item {i}: image shape = {item.shape}")
     #     for i, item in enumerate(train_batch["masks"]):
     #         print(f"  Item {i}: mask shape = {item.shape}")
-
-
 
     print("total_train", total_train)
     print("len total_train", len(total_train))
@@ -817,8 +836,8 @@ if __name__ == "__main__":
     use_class_weight = False
     use_pixel_weight = False
     use_pixel_opt = False
-    power = "1.5_kidneys_focus" # focus или weak
-    
+    power = "1.5_kidneys_focus"  # focus или weak
+
     loss_type = power.split("_")[-1]
     print("loss_type", loss_type)
 
@@ -855,13 +874,14 @@ if __name__ == "__main__":
         max_n=3,
         max_k=3,
         use_augmentation=False,
-        loss_type=loss_type
+        loss_type=loss_type,
     )
 
     model_weight = f"sinusite_best_models/best_{experiment_name}_model.pth"
 
     val_predict_path = f"diff_predict_sinusite/predict_{experiment_name}/val"
-    train_predict_path = f"diff_predict_sinusite/predict_{experiment_name}/train"
+    train_predict_path = f"diff_predict_sinusite/predict_{
+        experiment_name}/train"
 
     limited_train_loader = itertools.islice(train_loader, 6)
     limited_val_loader = itertools.islice(val_loader, 6)

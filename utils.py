@@ -1,15 +1,21 @@
+import csv
 import os
 import random
 from typing import Any, List, Optional, Tuple
 
 import numpy as np
-import csv
 import torch
 from torch.utils.data import DataLoader
 
-from losses import strong_combined_loss, weak_combined_loss, global_focus_loss
+from losses import (
+    binary_cross_entropy,
+    global_focus_loss,
+    strong_combined_loss,
+    weak_combined_loss,
+)
 
 SMOOTH = 1e-8
+
 
 def set_seed(seed):
     random.seed(seed)
@@ -195,7 +201,8 @@ class ExperimentSetup:
                 pixel_all_class_weights.append(pixel_class_weights)
 
         # experiment_name = f"{power}_loss_clsW_{self.use_cls}_pixW_{self.use_pixel}_pixOpt_{self.use_pixel_opt}"
-        experiment_name = f"{power}_loss_class_weights_{self.use_cls}_pixel_weights_{self.use_pixel}_pixel_opt_{self.use_pixel_opt}"
+        experiment_name = f"{power}_loss_class_weights_{self.use_cls}_pixel_weights_{
+            self.use_pixel}_pixel_opt_{self.use_pixel_opt}"
 
         if "weak_loss" in experiment_name:
             criterion = weak_combined_loss
@@ -203,6 +210,8 @@ class ExperimentSetup:
             criterion = strong_combined_loss
         elif "focus_loss" in experiment_name:
             criterion = global_focus_loss
+        elif "bce_loss" in experiment_name:
+            criterion = binary_cross_entropy
         else:
             raise ValueError("Invalid experiment name")
 
