@@ -6,6 +6,13 @@ def binary_cross_entropy(outputs: torch.Tensor, labels: torch.Tensor) -> torch.T
     loss = -labels * torch.log(outputs + 0.00001) - (1 - labels) * torch.log(
         1 - outputs + 0.00001
     )
+    return loss
+
+
+def bce(outputs: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+    loss = -labels * torch.log(outputs + 0.00001) - (1 - labels) * torch.log(
+        1 - outputs + 0.00001
+    )
     return loss.mean()
 
 
@@ -153,15 +160,11 @@ def global_focus_loss(
     smooth = 0.00001
 
     if mode == "ML":
-        label = F.sigmoid(label)
-        label = label + smooth
         loss_bce = -(
             true_label * torch.log(label) + (1 - true_label) * torch.log(1 - label)
         )
 
     if mode == "MC":
-        label = F.softmax(label)
-        label = label + smooth
         logged_label = torch.log(label)
         loss_bce = -true_label * logged_label
 

@@ -10,8 +10,8 @@ import torch
 
 DEVICE = torch.device("cuda:0")
 
-model_checkpoint = "/home/imran-nasyrov/model_checkpoints/1.1/epoch_120"
-# model_checkpoint = "/home/imran-nasyrov/model_checkpoints/1.2/epoch_2"
+# model_checkpoint = "/home/imran-nasyrov/model_checkpoints/1.1/epoch_120"
+model_checkpoint = "/home/imran-nasyrov/model_checkpoints/1.2/epoch_120"
 model_id = 'microsoft/Florence-2-large'
 model = AutoModelForCausalLM.from_pretrained(model_checkpoint, trust_remote_code=True).eval().to(DEVICE)
 processor = AutoProcessor.from_pretrained(model_checkpoint, trust_remote_code=True)
@@ -47,14 +47,16 @@ def run_example(task_prompt, text_input=None):
 # url = "https://www.culture.ru/s/slovo-dnya/peyzazh/images/tild3537-3033-4462-b061-313666313532__8.jpg"
 # image = Image.open(requests.get(url, stream=True).raw)
 
-local_image_path = "/home/imran-nasyrov/sinusite_json_data/task_sinusite_data_29_11_23_1_st_sin_labeling/images/sinusite_29_11_23/sin_29_11_23_1/sinusite_29_11_23 (1145).jpg"
-# local_image_path = "/home/imran-nasyrov/sct_project/sct_data/FINAL_CONVERT/100604476/1.2.392.200036.9116.2.6.1.48.1214245753.1506921568.925536/images/255_a8085fb96f3e8b87bd8723db0206120918052dcc566fb97d9f3de2f4fe789615_1.2.392.200036.9116.2.6.1.48.1214245753.1506921033.705311.png"
+# local_image_path = "/home/imran-nasyrov/cvat_jsonl/task_task_21_mart_23_lindenbraten_num2c-2023_03_21_15_15_33-coco 1.0/images/6mart23 (6530).jpg"
+local_image_path = "/home/imran-nasyrov/cvat_jsonl/task_перелом-2022_11_30_20_31_59-coco 1.0/images/16.jpg"
+# local_image_path = "/home/imran-nasyrov/sinusite_json_data/task_sinusite_data_29_11_23_1_st_sin_labeling/images/sinusite_29_11_23/sin_29_11_23_1/sinusite_29_11_23 (1145).jpg"
 image = Image.open(local_image_path)
 
 # task_prompt = '<CAPTION_TO_PHRASE_GROUNDING>'
 # task_prompt = "<DETAILED_CAPTION>" # {'CAPTION': '\nCT scan of the head and neck of a man with a large tumor in the middle of his head<loc_153><loc_113><loc_912><loc_998>\n'}
-task_prompt = "<OD>"
-results, modified_image = run_example(task_prompt, text_input="")
+task_prompt = "<CAPTION_TO_PHRASE_GROUNDING>"
+text_input = "sinus"
+results, modified_image = run_example(task_prompt, text_input=text_input)
 print(results)
 
 # OPEN_VOCABULARY_DETECTION короче тоже не рисует то что надо
@@ -85,12 +87,14 @@ def convert_to_od_format(data):
 
 import matplotlib.pyplot as plt  
 import matplotlib.patches as patches  
-def plot_bbox(image, data):
+def plot_bbox(image, data, text_input):
    # Create a figure and axes  
     fig, ax = plt.subplots()  
 
     # Display the image  
     ax.imshow(image)  
+    
+    image_width, image_height = image.size
 
     # Plot each bounding box  
     for bbox, label in zip(data['bboxes'], data['labels']):  
@@ -103,6 +107,9 @@ def plot_bbox(image, data):
         # Annotate the label  
         plt.text(x1, y1, label, color='white', fontsize=8, bbox=dict(facecolor='red', alpha=0.5))  
 
+    plt.text(image_width - 10, image_height - 10, text_input, color='white', fontsize=12, ha='right', va='bottom',
+             bbox=dict(facecolor='black', alpha=0.7))
+    
     # Remove the axis ticks and labels  
     ax.axis('off')  
 
@@ -111,7 +118,8 @@ def plot_bbox(image, data):
     save_path="test_florence"
     fig.savefig(f"{save_path}/img.jpg", bbox_inches='')
 
-plot_bbox(image, results['<OD>'])    
+
+plot_bbox(image, results['<CAPTION_TO_PHRASE_GROUNDING>'], text_input)    
 # plot_bbox(image, bbox_results)   
 
     

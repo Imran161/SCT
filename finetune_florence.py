@@ -17,7 +17,8 @@ from PIL import Image
 
 CHECKPOINT = "microsoft/Florence-2-base-ft"
 REVISION = "refs/pr/6"
-DEVICE = torch.device("cuda:1")
+# DEVICE = torch.device("cuda:1")
+DEVICE = torch.device("cpu")
 
 model = AutoModelForCausalLM.from_pretrained(
     CHECKPOINT, trust_remote_code=True, revision=REVISION
@@ -105,7 +106,7 @@ def split_directories(root_directory_path: str, train_val_ratio: float = 0.9):
     return train_subdirectories, val_subdirectories
 
 
-BATCH_SIZE = 6
+BATCH_SIZE = 1
 NUM_WORKERS = 0
 
 
@@ -171,7 +172,24 @@ peft_model.print_trainable_parameters()
 torch.cuda.empty_cache()
 
 
-# @title Define train loop
+def custom_cross_entropy(logits, labels):
+    """
+    Логиты: (batch_size, num_classes)
+    Лейблы: (batch_size,)
+    """
+    # Шаг 1: Применяем softmax к логитам
+    probs = torch.softmax(logits, dim=-1)  # (batch_size, num_classes)
+    # print("probs", probs)
+    # print("probs shape", probs.shape)
+    
+    # Шаг 2: Берем вероятность правильного класса
+    true_class_probs = probs[torch.arange(len(labels)), labels]  # (batch_size,)
+    
+    # Шаг 3: Вычисляем отрицательный логарифм вероятности правильного класса
+    loss = -torch.log(true_class_probs)  # (batch_size,)
+    
+    # Шаг 4: Усредняем потери по всем примерам
+    return loss.mean()
 
 
 def train_model(
@@ -188,8 +206,8 @@ def train_model(
         num_training_steps=num_training_steps,
     )
 
-    # render_inference_results(peft_model, val_loader.dataset, 6)
-
+    # n=0
+    
     for epoch in range(epochs):
         # try:
         model.train()
@@ -210,25 +228,47 @@ def train_model(
                 truncation=True #можно еще попробовать
             ).input_ids.to(DEVICE)
             
-
-            # max_lenght = 1024
-            # labels = labels[:,:max_lenght]
-            # print("labels", labels.shape)
-            # print("input_ids", input_ids.shape)
-            # print("pixel_values", pixel_values.shape)
-            
             outputs = model(
                 input_ids=input_ids, pixel_values=pixel_values, labels=labels
             )
-            loss = outputs.loss
-
-            (
-                loss.backward(),
-                optimizer.step(),
-                lr_scheduler.step(),
-                optimizer.zero_grad(),
-            )
+            
+            #########################################
+            # было так
+            # print("labels shape", labels.shape)
+            # print("labels", labels)
+            # print("outputs shape", outputs["logits"].shape)
+            # print("outputs", outputs["logits"])
+            
+            # loss = outputs.loss
+            ##########################################
+            
+            print("inputs", inputs)
+            print("answers", answers)
+            
+            logits = outputs.logits  # (batch_size, seq_len, vocab_size)
+            # print("logits", logits)
+            # print("logits shape", logits.shape)
+            # Reshape logits to (batch_size * seq_len, vocab_size)
+            logits = logits.view(-1, logits.size(-1))  # (batch_size * seq_len, vocab_size)
+            # print("logits 2", logits)
+            # print("logits 2 shape", logits.shape)
+            # Reshape labels to (batch_size * seq_len)
+            labels = labels.view(-1)  # (batch_size * seq_len)
+            # print("logits 3", logits)
+            # print("logits 3 shape", logits.shape)
+            # Calculate the loss using custom cross entropy
+            
+            loss = custom_cross_entropy(logits, labels)
+   
+   
+            loss.backward()
+            optimizer.step()
+            lr_scheduler.step()
+            optimizer.zero_grad()
+            
             train_loss += loss.item()
+            # n+=1
+            # print("train_loss", train_loss / n)
 
         avg_train_loss = train_loss / len(train_loader)
         print(f"Average Training Loss: {avg_train_loss}")
@@ -251,12 +291,22 @@ def train_model(
 
                 # max_lenght = 1024
                 # labels = labels[:,:max_lenght]
-            
+                
                 outputs = model(
                     input_ids=input_ids, pixel_values=pixel_values, labels=labels
                 )
-                loss = outputs.loss
-
+                
+                # было так
+                ##############################
+                # loss = outputs.loss
+                #############################
+                
+                logits = outputs.logits  # (batch_size, seq_len, vocab_size)
+                logits = logits.view(-1, logits.size(-1))  # (batch_size * seq_len, vocab_size)
+                labels = labels.view(-1)  # (batch_size * seq_len)
+                loss = custom_cross_entropy(logits, labels)
+                
+                
                 val_loss += loss.item()
 
             avg_val_loss = val_loss / len(val_loader)
@@ -279,7 +329,7 @@ def train_model(
 
 EPOCHS = 120
 LR = 5e-6
-experiment_name = "1.2"
+experiment_name = "1.3"
 
 train_model(
     experiment_name,

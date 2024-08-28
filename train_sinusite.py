@@ -320,7 +320,7 @@ def train_model(
                     all_weights_no_fon = None
 
                 # тут n сделаю
-                n += 1
+                # n += 1
                 
                 # шум
                 # outputs = model(
@@ -353,9 +353,11 @@ def train_model(
                     # global_stats["global_loss_sum"] += loss_bce.sum().item()
                     # global_stats["global_loss_numel"] += loss_bce.numel()
 
-                    global_stats["global_loss_sum"] = global_loss_sum / n
-                    global_stats["global_loss_numel"] = global_loss_numel / n
+                    global_stats["global_loss_sum"] = global_loss_sum #/ n
+                    global_stats["global_loss_numel"] = global_loss_numel #/ n
 
+                    print("global_stats", global_stats)
+                    
                     # global_stats = update_global_stats(global_stats, loss_bce)
 
                     # +=global_stats["global_loss_sum"] / (k*a)
@@ -388,7 +390,7 @@ def train_model(
                 )  # , advanced_metrics=True)
 
                 # скользящее среднее
-                # n += 1
+                n += 1
                 pbar.set_postfix(loss=train_loss_sum / n)
                 pbar.update(1)
 
@@ -430,11 +432,11 @@ def train_model(
 
         if alpha_no_fon is not None:
             # print("alpha_no_fon", alpha_no_fon)
-            print("class", class_names_dict["1"])
+            print("class", class_names_dict[1])
             print("alpha_no_fon pixel_pos_weights", alpha_no_fon[0])
-            print("class", class_names_dict["2"])
+            print("class", class_names_dict[2])
             print("alpha_no_fon pixel_neg_weights", alpha_no_fon[1])
-            print("class", class_names_dict["3"])
+            print("class", class_names_dict[3])
             print("alpha_no_fon pixel_class_weights", alpha_no_fon[2])
         
         print("class_names_dict", class_names_dict)
@@ -443,10 +445,7 @@ def train_model(
         if use_opt_pixel_weight:
             alpha_no_fon = weight_opt.opt_pixel_weight(train_metrics, alpha_no_fon)
 
-        print(
-            f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {
-                train_loss_avg}, Train IoU: {train_iou_avg}"
-        )
+        print(f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {train_loss_avg}, Train IoU: {train_iou_avg}")
         ###############################################################
         # Валидация
         model.eval()
@@ -517,10 +516,7 @@ def train_model(
             # val_iou_avg = val_iou_sum / len(val_loader)
             val_iou_avg = val_iou_sum / len(val_loader)
 
-        print(
-            f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {
-                train_loss_avg}, Val Loss: {val_loss_avg},  Val IoU: {val_iou_avg}"
-        )
+        print(f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {train_loss_avg}, Val Loss: {val_loss_avg},  Val IoU: {val_iou_avg}")
 
         if lr_sched is not None:
             lr_sched.step()  # когда мы делаем эту команду он залезает в optimizer и изменяет lr умножая его на 0.5
@@ -604,8 +600,7 @@ def train_model(
 
     torch.save(
         model.state_dict(),
-        f"{
-            last_model_path}/last_{experiment_name}_model.pth",
+        f"{last_model_path}/last_{experiment_name}_model.pth",
     )
 
     last_csv_file = f"{last_model_path}/last_metrics.csv"
@@ -834,9 +829,9 @@ if __name__ == "__main__":
     lr_sched = None
 
     use_class_weight = False
-    use_pixel_weight = False
+    use_pixel_weight = True
     use_pixel_opt = False
-    power = "1.5_kidneys_focus"  # focus или weak
+    power = "1.7_kidneys_weak"  # focus или weak
 
     loss_type = power.split("_")[-1]
     print("loss_type", loss_type)
@@ -854,6 +849,7 @@ if __name__ == "__main__":
         use_class_weight, use_pixel_weight, use_pixel_opt, power
     )
 
+    print("experiment_name", experiment_name)
     print("criterion", criterion)
 
     train_model(
@@ -880,8 +876,7 @@ if __name__ == "__main__":
     model_weight = f"sinusite_best_models/best_{experiment_name}_model.pth"
 
     val_predict_path = f"diff_predict_sinusite/predict_{experiment_name}/val"
-    train_predict_path = f"diff_predict_sinusite/predict_{
-        experiment_name}/train"
+    train_predict_path = f"diff_predict_sinusite/predict_{experiment_name}/train"
 
     limited_train_loader = itertools.islice(train_loader, 6)
     limited_val_loader = itertools.islice(val_loader, 6)
