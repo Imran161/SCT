@@ -18,7 +18,7 @@ dst_folder = "test_sinusite_jsonl"
 # Создать целевую папку, если она не существует
 os.makedirs(dst_folder, exist_ok=True)
 
-# это фиксированные классы 
+# это фиксированные классы
 class_id_to_name = {
     1: "Right maxillary sinus (outer contour)",
     2: "Left maxillary sinus (outer contour)",
@@ -63,7 +63,7 @@ def process_mask(ann, image_height, image_width):
 def resize_image_and_boxes(image, boxes, target_size):
     h, w = image.shape[:2]
     resized_image = cv2.resize(image, (target_size, target_size))
-    scale_x = target_size / w 
+    scale_x = target_size / w
     scale_y = target_size / h
     resized_boxes = []
     for box in boxes:
@@ -73,7 +73,7 @@ def resize_image_and_boxes(image, boxes, target_size):
         # x2 = int(box[2] * scale_x)
         # y2 = int(box[3] * scale_y)
         # resized_boxes.append([x1, y1, x2, y2])
-        
+
         x1 = int(box[0] * scale_x)
         y1 = int(box[1] * scale_y)
         x2 = int(box[2] * scale_x)
@@ -111,10 +111,10 @@ with tqdm(
 
         annotations = coco_data["annotations"]
         images = coco_data["images"]
-        
+
         # categories = class_id_to_name  # Используем словарь для перевода имен классов
         # Создание словаря для перевода id в имя класса из JSON файла
-        categories = {cat['id']: cat['name'] for cat in coco_data["categories"]}
+        categories = {cat["id"]: cat["name"] for cat in coco_data["categories"]}
 
         jsonl_data = []
 
@@ -215,7 +215,6 @@ with tqdm(
                 f.write("\n")
 
         pbar_dirs.update(1)
-
 
 
 # это переводит на английский язык классы
