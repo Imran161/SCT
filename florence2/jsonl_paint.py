@@ -3,7 +3,7 @@ import json
 import cv2
 
 # Указать пути к папкам
-src_folder = 'sinusite_jsonl'
+src_folder = 'test_sinusite_jsonl'
 dst_folder = 'jsonl_out'
 
 # Создать целевую папку, если она не существует

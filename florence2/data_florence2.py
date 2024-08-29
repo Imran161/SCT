@@ -9,11 +9,11 @@ from tqdm import tqdm
 # это для синуситов я сам перевел классы
 
 # Указать пути к папкам
-# src_folder = "sinusite_json_data"
-# dst_folder = "sinusite_jsonl"
+src_folder = "sinusite_json_data"
+dst_folder = "test_sinusite_jsonl"
 
-src_folder = "cvat_unzip"
-dst_folder = "cvat_jsonl"
+# src_folder = "cvat_unzip"
+# dst_folder = "cvat_jsonl"
 
 # Создать целевую папку, если она не существует
 os.makedirs(dst_folder, exist_ok=True)
@@ -63,15 +63,29 @@ def process_mask(ann, image_height, image_width):
 def resize_image_and_boxes(image, boxes, target_size):
     h, w = image.shape[:2]
     resized_image = cv2.resize(image, (target_size, target_size))
-    scale_x = target_size / w
+    scale_x = target_size / w 
     scale_y = target_size / h
     resized_boxes = []
     for box in boxes:
+        # вот так было, но тут на 1000 не умножается
+        # x1 = int(box[0] * scale_x)
+        # y1 = int(box[1] * scale_y)
+        # x2 = int(box[2] * scale_x)
+        # y2 = int(box[3] * scale_y)
+        # resized_boxes.append([x1, y1, x2, y2])
+        
         x1 = int(box[0] * scale_x)
         y1 = int(box[1] * scale_y)
         x2 = int(box[2] * scale_x)
         y2 = int(box[3] * scale_y)
-        resized_boxes.append([x1, y1, x2, y2])
+
+        # Масштабирование до диапазона [0, 999]
+        scaled_x1 = int(x1 * 1000 / target_size)
+        scaled_y1 = int(y1 * 1000 / target_size)
+        scaled_x2 = int(x2 * 1000 / target_size)
+        scaled_y2 = int(y2 * 1000 / target_size)
+
+        resized_boxes.append([scaled_x1, scaled_y1, scaled_x2, scaled_y2])
     return resized_image, resized_boxes
 
 

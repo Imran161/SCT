@@ -8,7 +8,8 @@ import supervision as sv
 from PIL import Image
 import torch
 
-DEVICE = torch.device("cuda:0")
+# DEVICE = torch.device("cuda:0")
+DEVICE = torch.device("cpu")
 
 # model_checkpoint = "/home/imran-nasyrov/model_checkpoints/1.1/epoch_120"
 model_checkpoint = "/home/imran-nasyrov/model_checkpoints/1.2/epoch_120"
@@ -32,7 +33,14 @@ def run_example(task_prompt, text_input=None):
       do_sample=False,
       num_beams=3,
     )
+    # print("generated_ids", generated_ids)
+    # print("generated_ids shape", generated_ids.shape)
+    
     generated_text = processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
+    # print("generated_text", generated_text)
+    # print("image.width", image.width)
+    # print("image.height", image.height)
+    
     parsed_answer = processor.post_process_generation(
         generated_text,
         task=task_prompt,
@@ -53,9 +61,9 @@ local_image_path = "/home/imran-nasyrov/cvat_jsonl/task_перелом-2022_11_3
 image = Image.open(local_image_path)
 
 # task_prompt = '<CAPTION_TO_PHRASE_GROUNDING>'
-# task_prompt = "<DETAILED_CAPTION>" # {'CAPTION': '\nCT scan of the head and neck of a man with a large tumor in the middle of his head<loc_153><loc_113><loc_912><loc_998>\n'}
-task_prompt = "<CAPTION_TO_PHRASE_GROUNDING>"
-text_input = "sinus"
+# task_prompt = "<REFERRING_EXPRESSION_SEGMENTATION>" # {'CAPTION': '\nCT scan of the head and neck of a man with a large tumor in the middle of his head<loc_153><loc_113><loc_912><loc_998>\n'}
+task_prompt = "<REFERRING_EXPRESSION_SEGMENTATION>"
+text_input = ""
 results, modified_image = run_example(task_prompt, text_input=text_input)
 print(results)
 
@@ -119,7 +127,7 @@ def plot_bbox(image, data, text_input):
     fig.savefig(f"{save_path}/img.jpg", bbox_inches='')
 
 
-plot_bbox(image, results['<CAPTION_TO_PHRASE_GROUNDING>'], text_input)    
+# plot_bbox(image, results['<CAPTION_TO_PHRASE_GROUNDING>'], text_input)    
 # plot_bbox(image, bbox_results)   
 
     
@@ -172,9 +180,42 @@ def draw_polygons(image, prediction, fill_mask=False, save_path=None):
     image.save(f"{save_path}/img.jpg")
     print(f"Saved image with polygons drawn to: {save_path}")
 
-# output_image = copy.deepcopy(image)
-# draw_polygons(output_image, results['<REFERRING_EXPRESSION_SEGMENTATION>'], fill_mask=True, 
-#               save_path="test_florence")
+output_image = copy.deepcopy(image)
+draw_polygons(output_image, results['<REFERRING_EXPRESSION_SEGMENTATION>'], fill_mask=True, 
+              save_path="test_florence")
 
 
 
+# image.width 1024
+# image.height 1024
+
+# generated_ids tensor([[    2,     0, 50590,  ..., 50500, 50521,     2]])
+# generated_ids shape torch.Size([1, 1025])
+# generated_text <loc_321><loc_169><loc_408><loc_97><loc_551><loc_143><loc_551><loc_143><loc_544><loc_227>
+# <loc_544><loc_227><loc_551><loc_252><loc_551><loc_252><loc_544><loc_253><loc_544><loc_252><loc_544><loc_252>
+# <loc_546><loc_253><loc_546><loc_253><loc_547><loc_253><loc_547><loc_252><loc_547><loc_252><loc_548><loc_252>
+# <loc_548><loc_253><loc_548><loc_253><loc_549><loc_253><loc_549><loc_252><loc_549><loc_252><loc_550><loc_252>
+# <loc_550><loc_253><loc_550><loc_253><loc_551><loc_253><loc_551><loc_252><loc_550><loc_251><loc_550><loc_251>
+# <loc_549><loc_251><loc_549><loc_252><loc_548><loc_251><loc_548><loc_251><loc_547><loc_251><loc_547><loc_252>
+# <loc_546><loc_252><loc_546><loc_251><loc_546><loc_251><loc_547><loc_250><loc_547><loc_250><loc_546><loc_250>
+# <loc_546><loc_251><loc_545><loc_251><loc_545><loc_252><loc_545><loc_252><loc_544><loc_251><loc_544><loc_251>
+# <loc_543><loc_251><loc_543><loc_252><loc_543><loc_252><loc_542><loc_252><loc_542><loc_251><loc_542><loc_251>
+# <loc_543><loc_250><loc_543><loc_250><loc_544><loc_250><loc_544>
+
+# result
+# {'<REFERRING_EXPRESSION_SEGMENTATION>': {'polygons': [[[329.21600341796875, 173.56800842285156, 418.30401611328125, 
+# 99.84000396728516, 564.7360229492188, 146.94400024414062, 564.7360229492188, 146.94400024414062, 557.5680541992188, 
+# 232.9600067138672, 557.5680541992188, 232.9600067138672, 564.7360229492188, 258.55999755859375, 564.7360229492188, 
+# 258.55999755859375, 557.5680541992188, 259.5840148925781, 557.5680541992188, 258.55999755859375, 557.5680541992188,
+# 258.55999755859375, 559.6160278320312, 259.5840148925781, 559.6160278320312, 259.5840148925781, 560.6400146484375, 
+# 259.5840148925781, 560.6400146484375, 258.55999755859375, 560.6400146484375, 258.55999755859375, 561.6640014648438, 
+# 258.55999755859375, 561.6640014648438, 259.5840148925781, 561.6640014648438, 259.5840148925781, 562.6880493164062, 
+# 259.5840148925781, 562.6880493164062, 258.55999755859375, 562.6880493164062, 258.55999755859375, 563.7120361328125, 
+# 258.55999755859375, 563.7120361328125, 259.5840148925781, 563.7120361328125, 259.5840148925781, 564.7360229492188,
+# 259.5840148925781, 564.7360229492188, 258.55999755859375, 563.7120361328125, 257.5360107421875, 563.7120361328125, 
+# 257.5360107421875, 562.6880493164062, 257.5360107421875, 562.6880493164062, 258.55999755859375, 561.6640014648438, 
+# 257.5360107421875, 561.6640014648438, 257.5360107421875, 560.6400146484375, 257.5360107421875, 560.6400146484375, 
+# 258.55999755859375, 559.6160278320312, 258.55999755859375, 559.6160278320312, 257.5360107421875, 559.6160278320312, 
+# 257.5360107421875, 560.6400146484375, 256.51202392578125, 560.6400146484375, 256.51202392578125, 559.6160278320312, 
+# 256.51202392578125, 559.6160278320312, 257.5360107421875, 558.592041015625, 257.5360107421875, 558.592041015625, 
+# 258.55999755859375, 558.592041015625, 258.55999755859375, 557.5680541992188, 257.5360107421875, 557.5680541992188, 
