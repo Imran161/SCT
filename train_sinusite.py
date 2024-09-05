@@ -283,7 +283,7 @@ def train_model(
         ) as pbar:
             for batch_idx, train_batch in enumerate(train_loader):
                 optimizer.zero_grad()
-
+                
                 # images, masks = train_batch
                 # # print("masks 0", masks[0][2]) тут по ходу не фон нулевой, там не только единицы
                 # masks = masks[:, 1:, :, :].to(device)
@@ -430,14 +430,27 @@ def train_model(
 
         writer.add_scalar("Learning Rate", optimizer.param_groups[0]["lr"], epoch)
 
+        print("alpha_no_fon", alpha_no_fon)
         if alpha_no_fon is not None:
-            # print("alpha_no_fon", alpha_no_fon)
-            print("class", class_names_dict[1])
-            print("alpha_no_fon pixel_pos_weights", alpha_no_fon[0])
-            print("class", class_names_dict[2])
-            print("alpha_no_fon pixel_neg_weights", alpha_no_fon[1])
-            print("class", class_names_dict[3])
-            print("alpha_no_fon pixel_class_weights", alpha_no_fon[2])
+            # print("class", class_names_dict[1])
+            # print("alpha_no_fon pixel_pos_weights", alpha_no_fon[0])
+            
+            print(f"\nclass: {class_names_dict[1]}, pixel_pos_weights {alpha_no_fon[0][0]}")
+            print(f"class: {class_names_dict[2]}, pixel_pos_weights {alpha_no_fon[0][1]}")
+            print(f"class: {class_names_dict[3]}, pixel_pos_weights {alpha_no_fon[0][2]}\n")
+            
+            print(f"class: {class_names_dict[1]}, pixel_neg_weights {alpha_no_fon[1][0]}")
+            print(f"class: {class_names_dict[2]}, pixel_neg_weights {alpha_no_fon[1][1]}")
+            print(f"class: {class_names_dict[3]}, pixel_neg_weights {alpha_no_fon[1][2]}\n")
+            
+            print(f"class: {class_names_dict[1]}, pixel_class_weights {alpha_no_fon[2][0]}")
+            print(f"class: {class_names_dict[2]}, pixel_class_weights {alpha_no_fon[2][1]}")
+            print(f"class: {class_names_dict[3]}, pixel_class_weights {alpha_no_fon[2][2]}\n")
+            
+            # print("class", class_names_dict[2])
+            # print("alpha_no_fon pixel_neg_weights", alpha_no_fon[1])
+            # print("class", class_names_dict[3])
+            # print("alpha_no_fon pixel_class_weights", alpha_no_fon[2])
         
         print("class_names_dict", class_names_dict)
         
@@ -831,7 +844,7 @@ if __name__ == "__main__":
     use_class_weight = False
     use_pixel_weight = True
     use_pixel_opt = False
-    power = "1.7_kidneys_weak"  # focus или weak
+    power = "1.7.1_kidneys_weak"  # focus или weak
 
     loss_type = power.split("_")[-1]
     print("loss_type", loss_type)

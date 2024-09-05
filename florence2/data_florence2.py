@@ -169,6 +169,10 @@ with tqdm(
                 image, all_boxes, 1024
             )
 
+            # print("resized_image", resized_image.shape)
+            # print("combined_mask", combined_mask.shape)
+            # break
+            
             # Удалить дубликаты боксов
             unique_boxes = set()
             unique_resized_boxes = []

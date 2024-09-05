@@ -177,7 +177,17 @@ class ExperimentSetup:
             pixel_all_class_weights = None
             self.use_pixel = "off"
         else:
-            pixel_count_data = self.batch_size * len(self.train_loader) * 256 * 256
+            for batch_idx, train_batch in enumerate(self.train_loader):
+                images = train_batch["images"]  
+                batch_size, channels, height, width = images.shape
+
+                print(f"Batch size: {batch_size}")
+                print(f"Number of channels: {channels}")
+                print(f"Height: {height}")
+                print(f"Width: {width}")
+                break
+
+            pixel_count_data = self.batch_size * len(self.train_loader) * height * width #256 * 256
             pixel_pos_weights = pixel_count_data / (2 * self.pixel_TotalTrain)
             pixel_neg_weights = pixel_count_data / (
                 2 * (pixel_count_data - self.pixel_TotalTrain)

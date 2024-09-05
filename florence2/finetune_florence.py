@@ -17,8 +17,7 @@ from PIL import Image
 
 CHECKPOINT = "microsoft/Florence-2-base-ft"
 REVISION = "refs/pr/6"
-# DEVICE = torch.device("cuda:1")
-DEVICE = torch.device("cpu")
+DEVICE = torch.device("cuda:1")
 
 model = AutoModelForCausalLM.from_pretrained(
     CHECKPOINT, trust_remote_code=True, revision=REVISION
@@ -58,9 +57,22 @@ class JSONLDataset:
 
         entry = self.entries[idx]
         image_path = os.path.join(entry["image_directory_path"], entry["image"])
+       
         try:
-            image = Image.open(image_path).convert("RGB")
+            # было так 
+            # image = Image.open(image_path).convert("RGB")
+            
+            # Загрузка черно-белого изображения с использованием OpenCV
+            image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+            if image is None:
+                raise FileNotFoundError(f"Image file {image_path} not found.")
+
+            # Конвертация черно-белого изображения в RGB формат
+            image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+        
+        
             return (image, entry)
+        
         except FileNotFoundError:
             raise FileNotFoundError(f"Image file {image_path} not found.")
 
@@ -74,6 +86,7 @@ class DetectionDataset(Dataset):
 
     def __getitem__(self, idx):
         image, data = self.dataset[idx]
+        
         prefix = data["prefix"]
         suffix = data["suffix"]
         return prefix, suffix, image
@@ -106,7 +119,7 @@ def split_directories(root_directory_path: str, train_val_ratio: float = 0.9):
     return train_subdirectories, val_subdirectories
 
 
-BATCH_SIZE = 1
+BATCH_SIZE = 6
 NUM_WORKERS = 0
 
 
@@ -118,7 +131,8 @@ def collate_fn(batch):
     return inputs, answers
 
 
-root_directory_path = "/home/imran-nasyrov/cvat_jsonl"
+root_directory_path = "/home/imran-nasyrov/cvat_phrase"
+# root_directory_path = "/home/imran-nasyrov/cvat_jsonl"
 # root_directory_path = "/home/imran-nasyrov/sinusite_jsonl"
 train_subdirectories, val_subdirectories = split_directories(root_directory_path)
 
@@ -192,6 +206,37 @@ def custom_cross_entropy(logits, labels):
     return loss.mean()
 
 
+# def draw_annotations(image, prefix, suffix):
+#     # Разбиваем суффикс на класс и координаты
+#     parts = suffix.split('<loc_')
+#     class_name = parts[0].rstrip('<>')
+
+#     height, width, _ = image.shape
+
+#     for i in range(1, len(parts), 4):
+#         if i + 3 < len(parts):
+#             try:
+#                 # Преобразование координат обратно к оригинальным размерам
+#                 x1 = int(parts[i].split('>')[0]) * width // 1000
+#                 y1 = int(parts[i + 1].split('>')[0]) * height // 1000
+#                 x2 = int(parts[i + 2].split('>')[0]) * width // 1000
+#                 y2 = int(parts[i + 3].split('>')[0]) * height // 1000
+
+#                 # Нарисовать прямоугольник (bounding box)
+#                 cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+#                 # Подписать класс
+#                 cv2.putText(image, class_name, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+#             except (IndexError, ValueError) as e:
+#                 print(f"Error processing bounding box: {e}")
+
+#     # Наносим текст префикса и суффикса на изображение
+#     cv2.putText(image, f"Prefix: {prefix}", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
+#     cv2.putText(image, f"Suffix: {class_name}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
+
+#     return image
+
+
 def train_model(
     experiment_name, train_loader, val_loader, model, processor, epochs=10, lr=1e-6
 ):
@@ -208,6 +253,9 @@ def train_model(
 
     # n=0
     
+    output_image_dir = "florence_dataloader"
+    os.makedirs(output_image_dir, exist_ok=True)
+    
     for epoch in range(epochs):
         # try:
         model.train()
@@ -219,6 +267,7 @@ def train_model(
             
             input_ids = inputs["input_ids"]
             pixel_values = inputs["pixel_values"]
+            
             labels = processor.tokenizer(
                 text=answers,
                 return_tensors="pt",
@@ -228,22 +277,28 @@ def train_model(
                 truncation=True #можно еще попробовать
             ).input_ids.to(DEVICE)
             
+            # print("input_ids", input_ids)
+            # # print("pixel_values", pixel_values)
+            # print("labels", labels)
+                
             outputs = model(
                 input_ids=input_ids, pixel_values=pixel_values, labels=labels
             )
             
             #########################################
             # было так
-            # print("labels shape", labels.shape)
-            # print("labels", labels)
-            # print("outputs shape", outputs["logits"].shape)
-            # print("outputs", outputs["logits"])
+            # # print("labels shape", labels.shape)
+            # # print("labels", labels)
+            # # print("outputs shape", outputs["logits"].shape)
+            # # print("outputs", outputs["logits"])
             
             # loss = outputs.loss
             ##########################################
             
-            print("inputs", inputs)
-            print("answers", answers)
+            # тут мой лосс
+            
+            # print("inputs", inputs)
+            # print("answers", answers)
             
             logits = outputs.logits  # (batch_size, seq_len, vocab_size)
             # print("logits", logits)
@@ -259,7 +314,8 @@ def train_model(
             # Calculate the loss using custom cross entropy
             
             loss = custom_cross_entropy(logits, labels)
-   
+            
+            ###########################
    
             loss.backward()
             optimizer.step()
@@ -269,6 +325,9 @@ def train_model(
             train_loss += loss.item()
             # n+=1
             # print("train_loss", train_loss / n)
+            
+
+            
 
         avg_train_loss = train_loss / len(train_loader)
         print(f"Average Training Loss: {avg_train_loss}")
@@ -289,6 +348,9 @@ def train_model(
                     truncation=True
                 ).input_ids.to(DEVICE)
 
+                
+
+                
                 # max_lenght = 1024
                 # labels = labels[:,:max_lenght]
                 
@@ -300,12 +362,14 @@ def train_model(
                 ##############################
                 # loss = outputs.loss
                 #############################
+                # мой лосс 
                 
                 logits = outputs.logits  # (batch_size, seq_len, vocab_size)
                 logits = logits.view(-1, logits.size(-1))  # (batch_size * seq_len, vocab_size)
                 labels = labels.view(-1)  # (batch_size * seq_len)
                 loss = custom_cross_entropy(logits, labels)
                 
+                ####################
                 
                 val_loss += loss.item()
 
@@ -342,63 +406,137 @@ train_model(
 )
 
 
-# Веса загрузить не могу
+
+# import os
+
+# # Указываем директорию, куда будем сохранять изображения и соответствующие данные
+# output_dir = "florence_dataloader"
+# if not os.path.exists(output_dir):
+#     os.makedirs(output_dir)
+
+# # Итерируемся по train_loader или val_loader без обучения
+# for i, (inputs, answers) in enumerate(train_loader):
+#     # Получаем изображения и префиксы/суффиксы
+#     images = inputs["pixel_values"]  # изображения в тензорах
+#     prefixes = inputs["input_ids"]  # префиксы в тензорах
+#     suffixes = answers  # суффиксы, уже в текстовом формате
+
+#     # Обрабатываем каждое изображение в батче
+#     for j in range(images.size(0)):
+#         # Преобразуем изображение обратно в PIL формат для сохранения
+#         image = images[j].cpu().detach().numpy()
+#         image = np.transpose(image, (1, 2, 0))  # Приводим размерности в порядок
+#         image = (image * 255).astype(np.uint8)  # Возвращаем из нормализации
+#         image_pil = Image.fromarray(image)
+        
+#         # Создаем имя файла на основе префикса
+#         prefix_text = processor.tokenizer.decode(prefixes[j].cpu().detach().numpy(), skip_special_tokens=True)
+#         prefix_clean = prefix_text.replace(" ", "_").replace("/", "_")  # Убираем недопустимые символы
+        
+#         # Определяем путь сохранения изображения
+#         image_save_path = os.path.join(output_dir, f"{prefix_clean}_{i}_{j}.jpg")
+        
+#         # Сохраняем изображение
+#         image_pil.save(image_save_path)
+        
+#         # Сохраняем суффикс в текстовый файл
+#         suffix_save_path = os.path.join(output_dir, f"{prefix_clean}_{i}_{j}_suffix.txt")
+#         with open(suffix_save_path, "w") as f:
+#             f.write(suffixes[j])
+    
+#     # Останавливаемся на небольшом количестве итераций для проверки
+#     if i > 5:  # Если нужно, измените это значение для большего количества данных
+#         break
+
+# print(f"Сохранено {i * BATCH_SIZE} изображений и их суффиксов в директорию {output_dir}")
 
 
-def render_inference_results(
-    model, dataset: DetectionDataset, count: int, output_directory: str
-):
-    os.makedirs(output_directory, exist_ok=True)
-    count = min(count, len(dataset))
-    for i in range(count):
-        image, data = dataset.dataset[i]
-        prefix = data["prefix"]
-        inputs = processor(text=prefix, images=image, return_tensors="pt").to(DEVICE)
-        generated_ids = model.generate(
-            input_ids=inputs["input_ids"],
-            pixel_values=inputs["pixel_values"],
-            max_new_tokens=1024,
-            num_beams=3,
-        )
-        generated_text = processor.batch_decode(
-            generated_ids, skip_special_tokens=False
-        )[0]
-        answer = processor.post_process_generation(
-            generated_text, task="<OD>", image_size=image.size
-        )
-
-        # Получите аннотации из ответа
-        print("answer", answer)
-        bboxes = answer["<OD>"]["bboxes"]
-        labels = answer["<OD>"]["labels"]
-
-        # Преобразуйте изображение в формат OpenCV
-        image_cv = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-
-        # Нарисуйте bounding boxes и подписи
-        for bbox, label in zip(bboxes, labels):
-            x1, y1, x2, y2 = map(int, bbox)
-            cv2.rectangle(image_cv, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(
-                image_cv,
-                label,
-                (x1, y1 - 10),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.5,
-                (0, 255, 0),
-                2,
-            )
-
-        # Сохраните изображение
-        output_path = os.path.join(output_directory, f"result_{i}.jpg")
-        cv2.imwrite(output_path, image_cv)
 
 
-# # Загрузите обученную модель и процессор
-# model_checkpoint = "/home/imran-nasyrov/model_checkpoints/epoch_120/"
 
-# model = AutoModelForCausalLM.from_pretrained(model_checkpoint, trust_remote_code=True).to(DEVICE)
-# processor = AutoProcessor.from_pretrained(model_checkpoint, trust_remote_code=True)
+# import os
+# import cv2
+# import numpy as np
+# import torch
 
-# output_directory = "./inference_results"
-# render_inference_results(model, val_dataset, count=6, output_directory=output_directory)
+# # Создаем директорию для сохранения изображений, если она не существует
+# output_image_dir = "florence_dataloader"
+# os.makedirs(output_image_dir, exist_ok=True)
+
+# def save_images_with_annotations(batch_images, batch_prefixes, batch_suffixes, epoch):
+#     """
+#     Сохраняет изображения с аннотациями (префиксами и суффиксами).
+    
+#     :param batch_images: Тензор изображений (batch_size, 3, height, width)
+#     :param batch_prefixes: Список префиксов
+#     :param batch_suffixes: Список суффиксов
+#     :param epoch: Номер текущей эпохи
+#     """
+#     for i in range(len(batch_images)):
+#         prefix = batch_prefixes[i]
+#         suffix = batch_suffixes[i]
+        
+#         # Извлекаем изображение из тензора и преобразуем его в формат OpenCV
+#         image = batch_images[i].cpu().numpy().transpose(1, 2, 0)
+#         image = (image * 255).astype(np.uint8)
+#         image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)  # Преобразуем в формат BGR для OpenCV
+        
+#         # Обрабатываем суффикс и рисуем аннотации
+#         annotated_image = draw_annotations(image, prefix, suffix)
+        
+#         # Сохраняем изображение
+#         cv2.imwrite(f"{output_image_dir}/epoch_{epoch}_image_{i}.jpg", annotated_image)
+
+# def draw_annotations(image, prefix, suffix):
+#     """
+#     Добавляет текстовые аннотации и рисует bounding box на изображении.
+    
+#     :param image: Исходное изображение (numpy массив)
+#     :param prefix: Префикс (текст)
+#     :param suffix: Суффикс с координатами для bounding box
+#     :return: Изображение с аннотациями
+#     """
+#     # Рисуем текст префикса
+#     cv2.putText(image, prefix, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+
+#     # Обработка и разделение суффикса на класс и координаты
+#     parts = suffix.split('<loc_')
+#     class_name = parts[0].rstrip('<>')
+
+#     height, width, _ = image.shape
+#     for i in range(1, len(parts), 4):
+#         if i + 3 < len(parts):
+#             try:
+#                 x1 = int(parts[i].split('>')[0]) * width // 1000
+#                 y1 = int(parts[i + 1].split('>')[0]) * height // 1000
+#                 x2 = int(parts[i + 2].split('>')[0]) * width // 1000
+#                 y2 = int(parts[i + 3].split('>')[0]) * height // 1000
+
+#                 # Рисуем прямоугольник и текст класса
+#                 cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+#                 cv2.putText(image, class_name, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+#             except (IndexError, ValueError) as e:
+#                 print(f"Error processing bounding box: {e}")
+
+#     return image
+
+# # Пример вызова функции после загрузки батча данных
+# def process_batch(batch, epoch):
+#     inputs, answers = batch
+#     batch_images = inputs["pixel_values"]
+#     batch_prefixes = inputs["input_ids"]  # Если это токены, нужно декодировать их в текст
+#     batch_prefixes = [processor.decode(prefix) for prefix in batch_prefixes]  # Преобразуем в текст
+
+#     # Сохраняем изображения с аннотациями
+#     save_images_with_annotations(batch_images, batch_prefixes, answers, epoch)
+
+
+# # Вызываем функцию для каждого батча в DataLoader
+# for epoch in range(EPOCHS):
+#     for i, batch in enumerate(train_loader):
+#         # Обрабатываем и сохраняем изображения
+#         process_batch(batch, epoch)
+        
+#         # (Опционально) Если вы хотите сохранить только несколько батчей для проверки
+#         if i >= 5:  # Сохраняем только первые 5 батчей
+#             break
