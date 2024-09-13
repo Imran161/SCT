@@ -8,11 +8,11 @@ import supervision as sv
 from PIL import Image
 import torch
 
-# DEVICE = torch.device("cuda:0")
-DEVICE = torch.device("cpu")
+DEVICE = torch.device("cuda:2")
+# DEVICE = torch.device("cpu")
 
-# model_checkpoint = "/home/imran-nasyrov/model_checkpoints/1.3/epoch_8"
-model_checkpoint = "/home/imran-nasyrov/model_checkpoints/1.2/epoch_120"
+model_checkpoint = "/home/imran-nasyrov/model_checkpoints/1.5/epoch_3000"
+# model_checkpoint = "/home/imran-nasyrov/model_checkpoints/1.2/epoch_120"
 # model_checkpoint = "microsoft/Florence-2-base-ft"
 
 model_id = 'microsoft/Florence-2-large'
@@ -26,6 +26,7 @@ def run_example(task_prompt, text_input=None):
         prompt = task_prompt
     else:
         prompt = task_prompt + text_input
+
     inputs = processor(text=prompt, images=image, return_tensors="pt")
     generated_ids = model.generate(
       input_ids=inputs["input_ids"].to(DEVICE),
@@ -59,14 +60,14 @@ def run_example(task_prompt, text_input=None):
 
 # local_image_path = "/home/imran-nasyrov/cvat_jsonl/task_task_21_mart_23_lindenbraten_num2c-2023_03_21_15_15_33-coco 1.0/images/6mart23 (6530).jpg"
 # local_image_path = "/home/imran-nasyrov/cvat_jsonl/task_перелом-2022_11_30_20_31_59-coco 1.0/images/16.jpg"
-local_image_path = "/home/imran-nasyrov/sinusite_json_data/task_sinusite_data_29_11_23_1_st_sin_labeling/images/sinusite_29_11_23/sin_29_11_23_1/sinusite_29_11_23 (1145).jpg"
+local_image_path = "/home/imran-nasyrov/cvat_mini/task_task_17_jule_23_pathology_anatomy_sinus_num2-2023_09_12_22_50_06-coco 1.0/images/105480892.jpg"
 image = Image.open(local_image_path)
 
 
 # task_prompt = '<CAPTION_TO_PHRASE_GROUNDING>'
 # task_prompt = "<REFERRING_EXPRESSION_SEGMENTATION>" # {'CAPTION': '\nCT scan of the head and neck of a man with a large tumor in the middle of his head<loc_153><loc_113><loc_912><loc_998>\n'}
 task_prompt = "<CAPTION_TO_PHRASE_GROUNDING>"
-text_input = "sinus"
+text_input = "Decrease in pneumatization of the paranasal sinuses"
 results, modified_image = run_example(task_prompt, text_input=text_input)
 print(results)
 

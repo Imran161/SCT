@@ -35,7 +35,9 @@ def focal_loss(
     loss_ce = binary_cross_entropy(output, target)
 
     # веса для focal loss
+    # pt = torch.exp(loss_ce)
     pt = torch.exp(-loss_ce)
+    
     if reduced_threshold is None:
         focal_term = (1.0 - pt).pow(gamma)
     else:

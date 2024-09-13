@@ -582,8 +582,8 @@ class DataProcessor:
 
 
 if __name__ == "__main__":
-    src_folder = "/home/imran-nasyrov/cvat_unzip/" #"sinusite_json_data"
-    dst_folder = "/home/imran-nasyrov/cvat_phrase" # test_sinusite_jsonl
+    src_folder = "/home/imran-nasyrov/cvat_lung_unzip/" #"sinusite_json_data"
+    dst_folder = "/home/imran-nasyrov/cvat_lung_phrase" # test_sinusite_jsonl
     task_type = "CAPTION_TO_PHRASE_GROUNDING"  # "OD" или "CAPTION_TO_PHRASE_GROUNDING" или "REFERRING_EXPRESSION_SEGMENTATION" 
     
     #######

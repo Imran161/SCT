@@ -87,7 +87,7 @@ import cv2
 # src_folder = '/home/imran-nasyrov/cvat_phrase'
 # dst_folder = 'florence_dataloader'
 
-src_folder = 'test_sinusite_jsonl'
+src_folder = '/home/imran-nasyrov/cvat_mini'
 dst_folder = 'jsonl_out'
 
 # Создать целевую папку, если она не существует

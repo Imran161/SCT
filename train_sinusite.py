@@ -745,7 +745,7 @@ if __name__ == "__main__":
     print("len val_loader", len(val_loader))
     print("len train_loader", len(train_loader))
 
-    device = torch.device("cuda:1")
+    device = torch.device("cuda:2")
     print(device)
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
 
@@ -842,9 +842,9 @@ if __name__ == "__main__":
     lr_sched = None
 
     use_class_weight = False
-    use_pixel_weight = True
+    use_pixel_weight = False
     use_pixel_opt = False
-    power = "1.7.1_kidneys_weak"  # focus или weak
+    power = "1.7.2_kidneys_weak"  # focus или weak
 
     loss_type = power.split("_")[-1]
     print("loss_type", loss_type)
