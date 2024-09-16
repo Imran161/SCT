@@ -160,20 +160,17 @@ train_subdirectories = [
     "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_1c-2024_02_26_15_44_35-coco 1.0",
     "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_2с-2024_02_16_02_27_35-coco 1.0",
     "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_3c-2024_04_24_19_39_16-coco 1.0",
-    "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_6с-2024_04_02_10_23_13-coco 1.0",
-    "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_10с-2024_05_12_10_15_51-coco 1.0",
-    
     "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_4c-2024_03_29_13_08_59-coco 1.0",
+    "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_6с-2024_04_02_10_23_13-coco 1.0",
     "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_7с-2024_03_15_17_38_41-coco 1.0",
     "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_8с-2024_02_27_18_08_45-coco 1.0",
     "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_9с-2023_11_14_19_54_06-coco 1.0"
+    "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_10с-2024_05_12_10_15_51-coco 1.0",
     "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_11с-2023_11_16_09_13_16-coco 1.0",
     "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_12с-2024_03_01_18_54_17-coco 1.0",
-    
 ]
 val_subdirectories = [
     "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_13с-2023_11_19_18_58_39-coco 1.0",
-    
     "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_5с-2024_04_09_10_42_06-coco 1.0",
 ]
 
