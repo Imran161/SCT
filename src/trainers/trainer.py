@@ -6,17 +6,18 @@ import cv2
 import numpy as np
 import segmentation_models_pytorch as smp
 import torch
+from coco_classes import (
+    kidneys_base_classes,
+    kidneys_pat_out_classes,
+)
+from coco_dataloaders import SINUSITE_COCODataLoader
 from sklearn.exceptions import UndefinedMetricWarning
 from torch.optim import Adam
 from torch.utils.data._utils.collate import default_collate
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from coco_classes import (
-    kidneys_base_classes,
-    kidneys_pat_out_classes,
-)
-from coco_dataloaders import SINUSITE_COCODataLoader
+from inference import test_model
 from metrics import DetectionMetrics
 from transforms import SegTransform
 from utils import ExperimentSetup, iou_metric, save_best_metrics_to_csv, set_seed
@@ -228,11 +229,10 @@ def train_model(
     # writer = SummaryWriter(log_dir=f"runs_sinusite/{experiment_name}_logs")
     writer = SummaryWriter(log_dir=f"runs_kidneys/{experiment_name}_logs")
     # metrics_calculator = DetectionMetrics(mode="ML", num_classes=num_classes)
-    
+
     # Создаем два объекта для подсчета метрик
     metrics_calculator_train = DetectionMetrics(mode="ML", num_classes=num_classes)
     metrics_calculator_val = DetectionMetrics(mode="ML", num_classes=num_classes)
-
 
     class_names_dict = {
         class_info["id"]: class_info["name"]
@@ -288,7 +288,7 @@ def train_model(
         ) as pbar:
             for batch_idx, train_batch in enumerate(train_loader):
                 optimizer.zero_grad()
-                
+
                 # images, masks = train_batch
                 # # print("masks 0", masks[0][2]) тут по ходу не фон нулевой, там не только единицы
                 # masks = masks[:, 1:, :, :].to(device)
@@ -326,7 +326,7 @@ def train_model(
 
                 # тут n сделаю
                 # n += 1
-                
+
                 # шум
                 # outputs = model(
                 #     combined
@@ -358,11 +358,11 @@ def train_model(
                     # global_stats["global_loss_sum"] += loss_bce.sum().item()
                     # global_stats["global_loss_numel"] += loss_bce.numel()
 
-                    global_stats["global_loss_sum"] = global_loss_sum #/ n
-                    global_stats["global_loss_numel"] = global_loss_numel #/ n
+                    global_stats["global_loss_sum"] = global_loss_sum  # / n
+                    global_stats["global_loss_numel"] = global_loss_numel  # / n
 
                     print("global_stats", global_stats)
-                    
+
                     # global_stats = update_global_stats(global_stats, loss_bce)
 
                     # +=global_stats["global_loss_sum"] / (k*a)
@@ -439,31 +439,51 @@ def train_model(
         if alpha_no_fon is not None:
             # print("class", class_names_dict[1])
             # print("alpha_no_fon pixel_pos_weights", alpha_no_fon[0])
-            
-            print(f"\nclass: {class_names_dict[1]}, pixel_pos_weights {alpha_no_fon[0][0]}")
-            print(f"class: {class_names_dict[2]}, pixel_pos_weights {alpha_no_fon[0][1]}")
-            print(f"class: {class_names_dict[3]}, pixel_pos_weights {alpha_no_fon[0][2]}\n")
-            
-            print(f"class: {class_names_dict[1]}, pixel_neg_weights {alpha_no_fon[1][0]}")
-            print(f"class: {class_names_dict[2]}, pixel_neg_weights {alpha_no_fon[1][1]}")
-            print(f"class: {class_names_dict[3]}, pixel_neg_weights {alpha_no_fon[1][2]}\n")
-            
-            print(f"class: {class_names_dict[1]}, pixel_class_weights {alpha_no_fon[2][0]}")
-            print(f"class: {class_names_dict[2]}, pixel_class_weights {alpha_no_fon[2][1]}")
-            print(f"class: {class_names_dict[3]}, pixel_class_weights {alpha_no_fon[2][2]}\n")
-            
+
+            print(
+                f"\nclass: {class_names_dict[1]}, pixel_pos_weights {alpha_no_fon[0][0]}"
+            )
+            print(
+                f"class: {class_names_dict[2]}, pixel_pos_weights {alpha_no_fon[0][1]}"
+            )
+            print(
+                f"class: {class_names_dict[3]}, pixel_pos_weights {alpha_no_fon[0][2]}\n"
+            )
+
+            print(
+                f"class: {class_names_dict[1]}, pixel_neg_weights {alpha_no_fon[1][0]}"
+            )
+            print(
+                f"class: {class_names_dict[2]}, pixel_neg_weights {alpha_no_fon[1][1]}"
+            )
+            print(
+                f"class: {class_names_dict[3]}, pixel_neg_weights {alpha_no_fon[1][2]}\n"
+            )
+
+            print(
+                f"class: {class_names_dict[1]}, pixel_class_weights {alpha_no_fon[2][0]}"
+            )
+            print(
+                f"class: {class_names_dict[2]}, pixel_class_weights {alpha_no_fon[2][1]}"
+            )
+            print(
+                f"class: {class_names_dict[3]}, pixel_class_weights {alpha_no_fon[2][2]}\n"
+            )
+
             # print("class", class_names_dict[2])
             # print("alpha_no_fon pixel_neg_weights", alpha_no_fon[1])
             # print("class", class_names_dict[3])
             # print("alpha_no_fon pixel_class_weights", alpha_no_fon[2])
-        
+
         print("class_names_dict", class_names_dict)
-        
+
         # оптимизация пиксельных весов
         if use_opt_pixel_weight:
             alpha_no_fon = weight_opt.opt_pixel_weight(train_metrics, alpha_no_fon)
 
-        print(f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {train_loss_avg}, Train IoU: {train_iou_avg}")
+        print(
+            f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {train_loss_avg}, Train IoU: {train_iou_avg}"
+        )
         ###############################################################
         # Валидация
         model.eval()
@@ -499,7 +519,7 @@ def train_model(
 
                 if loss_type == "weak" or loss_type == "strong":
                     val_loss_sum += criterion(outputs_val, masks_val, None, None).item()
-                 
+
                 elif loss_type == "focus":
                     val_loss, _, _ = criterion(
                         outputs_val,
@@ -534,7 +554,9 @@ def train_model(
             # val_iou_avg = val_iou_sum / len(val_loader)
             val_iou_avg = val_iou_sum / len(val_loader)
 
-        print(f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {train_loss_avg}, Val Loss: {val_loss_avg},  Val IoU: {val_iou_avg}")
+        print(
+            f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {train_loss_avg}, Val Loss: {val_loss_avg},  Val IoU: {val_iou_avg}"
+        )
 
         if lr_sched is not None:
             lr_sched.step()  # когда мы делаем эту команду он залезает в optimizer и изменяет lr умножая его на 0.5

@@ -1,3 +1,7 @@
+# это вроде чтобы конкретный файл маски отрисовать, а в pochki.py он сам найдет все,
+# но на самом деле я не помню уже что это за файлы, потому что есть файл data_convert.py
+
+
 import SimpleITK as sitk
 import nrrd
 import matplotlib.pyplot as plt
@@ -49,9 +53,9 @@ print("class_names", class_names)
 # ]
 #
 
+
 def resample_volume(mask, reference_image):
-    
-    interpolator=sitk.sitkLinear
+    interpolator = sitk.sitkLinear
     reference_size = reference_image.GetSize()
     print(reference_size, "reference_size")
     reference_spacing = reference_image.GetSpacing()
@@ -67,11 +71,9 @@ def resample_volume(mask, reference_image):
     resample.SetOutputDirection(reference_direction)
     resample.SetOutputOrigin(reference_origin)
     resample.SetInterpolator(interpolator)
-    
+
     resampled_mask = resample.Execute(mask)
     return sitk.GetArrayFromImage(resampled_mask)
-
-
 
 
 def read_nrrd_and_save_all_slices_cv2(image_dir, mask_dir):
@@ -95,21 +97,22 @@ def read_nrrd_and_save_all_slices_cv2(image_dir, mask_dir):
             print("resample")
             resampled_mask = resample_volume(mask, reference_image)
             print("resampled_mask shape", np.shape(resampled_mask))
-            print("type resampled_mask", type(resampled_mask)) # <class 'numpy.ndarray'>
+            print(
+                "type resampled_mask", type(resampled_mask)
+            )  # <class 'numpy.ndarray'>
             # resampled_mask_data = sitk.GetArrayFromImage(resampled_mask)
             resampled_mask_data = resampled_mask
-            
+
             np_mask = sitk.GetArrayFromImage(mask)
             np_data = sitk.GetArrayFromImage(reference_image)
             print("np_mask shape", np_mask.shape)
             print("np_data shape", np_data.shape)
             print("resampled_mask shape", np.shape(resampled_mask_data))
-            
-            
+
             # по идее надо вот их сравнить, то есть до и после,
             # layer_0 = np_mask[23, :, :, 0]
             # layer_1 = np_mask[23, :, :, 1]
-            
+
             #  но все работает норм и можно break и эти принты убрать
             # layer_0 = resampled_mask_data[23, :, :, 0]
             # layer_1 = resampled_mask_data[23, :, :, 1]
@@ -125,9 +128,9 @@ def read_nrrd_and_save_all_slices_cv2(image_dir, mask_dir):
             # print("Уникальные значения и их количество в resampled_mask_data[23, :, :, 1]:")
             # for value, count in zip(unique_values_layer_1, counts_layer_1):
             #     print(f"Value: {value}, Count: {count}")
-                
-            # break 
-        
+
+            # break
+
             for layer in range(resampled_mask_data.shape[-1]):
                 output_dir = f"/home/alexskv/pochki/nrrd_output_images_cv2/{os.path.splitext(file_name)[0]}_layer_{layer+1}"
                 os.makedirs(output_dir, exist_ok=True)
@@ -137,12 +140,16 @@ def read_nrrd_and_save_all_slices_cv2(image_dir, mask_dir):
                     m = resampled_mask_data[i, :, :, layer]
 
                     unique_values, counts = np.unique(m, return_counts=True)
-                    print(f"Slice {i+1}, Layer {layer+1} unique values and their counts in mask:")
+                    print(
+                        f"Slice {i+1}, Layer {layer+1} unique values and their counts in mask:"
+                    )
                     for value, count in zip(unique_values, counts):
                         print(f"Value: {value}, Count: {count}")
 
                     if d.max() != 0:
-                        normalized_img = cv2.normalize(d, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+                        normalized_img = cv2.normalize(
+                            d, None, 0, 255, cv2.NORM_MINMAX
+                        ).astype(np.uint8)
                         gray_img = cv2.cvtColor(normalized_img, cv2.COLOR_GRAY2BGR)
                         color_contours_img = np.zeros_like(gray_img)
 
@@ -157,17 +164,20 @@ def read_nrrd_and_save_all_slices_cv2(image_dir, mask_dir):
 
                         for class_value, color in class_colors.items():
                             class_mask = (m == class_value).astype(np.uint8)
-                            contours, _ = cv2.findContours(class_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                            contours, _ = cv2.findContours(
+                                class_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+                            )
                             cv2.drawContours(color_contours_img, contours, -1, color, 1)
 
-                        combined_img = cv2.addWeighted(gray_img, 1, color_contours_img, 0.5, 0)
-                        file_path = os.path.join(output_dir, f"{os.path.splitext(file_name)[0]}_slice_{i+1}.png")
+                        combined_img = cv2.addWeighted(
+                            gray_img, 1, color_contours_img, 0.5, 0
+                        )
+                        file_path = os.path.join(
+                            output_dir,
+                            f"{os.path.splitext(file_name)[0]}_slice_{i+1}.png",
+                        )
                         cv2.imwrite(file_path, combined_img)
                         print(f"Slice {i+1}, Layer {layer+1} saved as {file_path}.")
-
-
-
-
 
 
 # # Директория с изображениями и путь к файлу маски
@@ -175,9 +185,6 @@ def read_nrrd_and_save_all_slices_cv2(image_dir, mask_dir):
 # mask_path = image_dir + "/" + "Segmentation_1.seg.nrrd"
 
 # read_nrrd_and_save_all_slices_cv2(image_dir, image_dir)
-
-
-
 
 
 # image_dir = "/home/alexskv/data/Проект_Почки/готовые_1_часть/Sheremetjev MJu/3D"

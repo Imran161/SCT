@@ -1,3 +1,6 @@
+# не знаю что это за файл
+
+
 import SimpleITK as sitk
 import nrrd
 import matplotlib.pyplot as plt
@@ -56,11 +59,8 @@ def old_extract_class_names(segmentation_file):
 #
 
 
-
-
 def resample_volume(mask, reference_image):
-    
-    interpolator=sitk.sitkLinear
+    interpolator = sitk.sitkLinear
     reference_size = reference_image.GetSize()
     print(reference_size, "reference_size")
     reference_spacing = reference_image.GetSpacing()
@@ -76,9 +76,10 @@ def resample_volume(mask, reference_image):
     resample.SetOutputDirection(reference_direction)
     resample.SetOutputOrigin(reference_origin)
     resample.SetInterpolator(interpolator)
-    
+
     resampled_mask = resample.Execute(mask)
     return sitk.GetArrayFromImage(resampled_mask)
+
 
 def calculate_window_parameters(image):
     # Преобразование изображения в массив и вычисление статистик
@@ -91,15 +92,20 @@ def calculate_window_parameters(image):
     window_width = 2 * std_intensity
     return window_level, window_width
 
+
 def adjust_window_level(image, window_level, window_width):
     # Расчет минимального и максимального значения для окна
     min_window = window_level - (window_width / 2)
     max_window = window_level + (window_width / 2)
-    
-    # Применение оконирования
-    return sitk.IntensityWindowing(image, windowMinimum=min_window, windowMaximum=max_window, 
-                                   outputMinimum=0.0, outputMaximum=255.0)
 
+    # Применение оконирования
+    return sitk.IntensityWindowing(
+        image,
+        windowMinimum=min_window,
+        windowMaximum=max_window,
+        outputMinimum=0.0,
+        outputMaximum=255.0,
+    )
 
 
 def extract_class_names(segmentation_file):
@@ -111,7 +117,7 @@ def extract_class_names(segmentation_file):
     print("Уникальные значения и их количество в data")
     for value, count in zip(values, counts):
         print(f"Value: {value}, Count: {count}")
-    
+
     mask = sitk.ReadImage(mask_path)
 
     # Извлечение информации о сегментах
@@ -128,7 +134,7 @@ def extract_class_names(segmentation_file):
         else:
             break
 
-    return class_names, mask #data
+    return class_names, mask  # data
 
 
 def convert_to_one_hot(np_mask, class_names):
@@ -136,15 +142,13 @@ def convert_to_one_hot(np_mask, class_names):
     unique_classes = np.unique(np_mask)
     unique_classes = unique_classes[unique_classes != 0]  # Исключаем фон (значение 0)
     num_classes = len(unique_classes)
-    
-        
-    
-    one_hot_shape = np_mask.shape[:3] + 12 #(num_classes,) 
+
+    one_hot_shape = np_mask.shape[:3] + 12  # (num_classes,)
     one_hot_mask = np.zeros(one_hot_shape, dtype=np.uint8)
-    
+
     # Создание словаря индексов классов
     class_indices = {value: idx for idx, value in enumerate(unique_classes)}
-    print("class_indices", class_indices) 
+    print("class_indices", class_indices)
 
     # Создание словаря для отображения индекса слоя на имя класса
     class_layer_to_name = {}
@@ -152,9 +156,11 @@ def convert_to_one_hot(np_mask, class_names):
     for (layer, label_value), class_name in class_names.items():
         if label_value in class_indices:
             unique_class_idx = class_indices[label_value]
-            one_hot_mask[..., unique_class_idx] = (np_mask[..., layer] == label_value).astype(np.uint8)
+            one_hot_mask[..., unique_class_idx] = (
+                np_mask[..., layer] == label_value
+            ).astype(np.uint8)
             class_layer_to_name[unique_class_idx] = class_name
-    
+
     return one_hot_mask, class_indices, class_layer_to_name
 
 
@@ -180,34 +186,35 @@ def read_nrrd_and_save_all_slices_cv2(image_dir, mask_dir):
             resampled_mask = resample_volume(mask, reference_image)
             print("resampled_mask shape", resampled_mask.shape)
             np_mask = sitk.GetArrayFromImage(mask)
-            
+
             print("class_names", class_names)
-             # Вывод уникальных значений для всех слоев маски
+            # Вывод уникальных значений для всех слоев маски
             for layer in range(np_mask.shape[-1]):
-                unique_values_layer, counts_layer = np.unique(np_mask[..., layer], return_counts=True)
+                unique_values_layer, counts_layer = np.unique(
+                    np_mask[..., layer], return_counts=True
+                )
                 print(f"Уникальные значения и их количество в np_mask[..., {layer}]:")
                 for value, count in zip(unique_values_layer, counts_layer):
                     print(f"Value: {value}, Count: {count}")
 
-                
-
             # resampled_mask = resample_volume(sitk.GetImageFromArray(np_mask), reference_image)
             resampled_mask_data = resampled_mask
-        
-            
+
             np_data = sitk.GetArrayFromImage(adjusted_image)
             # print("np_data", np_data)
-            print("np_mask shape", np_mask.shape) # (172, 512, 512, 2)
+            print("np_mask shape", np_mask.shape)  # (172, 512, 512, 2)
             print("np_data shape", np_data.shape)
             print("resampled_mask shape", resampled_mask_data.shape)
 
-    
             # one_hot_mask = convert_to_one_hot(resampled_mask_data, class_names)
-            one_hot_mask, class_indices, class_layer_to_name = convert_to_one_hot(resampled_mask_data, class_names)
-            print("one_hot_mask shape", one_hot_mask.shape) # one_hot_mask shape (117, 512, 512, 7)
+            one_hot_mask, class_indices, class_layer_to_name = convert_to_one_hot(
+                resampled_mask_data, class_names
+            )
+            print(
+                "one_hot_mask shape", one_hot_mask.shape
+            )  # one_hot_mask shape (117, 512, 512, 7)
             print("class_layer_to_name", class_layer_to_name)
-            
-            
+
             break
             # for i in range(one_hot_mask.shape[0]):
             #     d = np_data[i, :, :]
@@ -257,8 +264,7 @@ def read_nrrd_and_save_all_slices_cv2(image_dir, mask_dir):
             for class_idx in range(one_hot_mask.shape[-1]):
                 class_dir = os.path.join(output_base_dir, f"class_{class_idx}")
                 os.makedirs(class_dir, exist_ok=True)
-            
-            
+
             for i in range(one_hot_mask.shape[0]):
                 d = sitk.GetArrayViewFromImage(adjusted_image)[i, :, :]
                 m = one_hot_mask[i, :, :, :]
@@ -269,22 +275,34 @@ def read_nrrd_and_save_all_slices_cv2(image_dir, mask_dir):
                     print(f"Value: {value}, Count: {count}")
 
                 if d.max() != 0 and m.max() != 0:
-                    normalized_img = cv2.normalize(d, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+                    normalized_img = cv2.normalize(
+                        d, None, 0, 255, cv2.NORM_MINMAX
+                    ).astype(np.uint8)
                     gray_img = cv2.cvtColor(normalized_img, cv2.COLOR_GRAY2BGR)
-                    
+
                     for class_idx in range(one_hot_mask.shape[-1]):
                         color_contours_img = np.zeros_like(gray_img)
                         class_mask = (m[..., class_idx] == 1).astype(np.uint8)
-                        contours, _ = cv2.findContours(class_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                        contours, _ = cv2.findContours(
+                            class_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+                        )
                         print("contours", contours)
-                        cv2.drawContours(color_contours_img, contours, -1, (0, 255, 0), 1)
+                        cv2.drawContours(
+                            color_contours_img, contours, -1, (0, 255, 0), 1
+                        )
 
-                        combined_img = cv2.addWeighted(gray_img, 1, color_contours_img, 0.5, 0)
+                        combined_img = cv2.addWeighted(
+                            gray_img, 1, color_contours_img, 0.5, 0
+                        )
                         class_dir = os.path.join(output_base_dir, f"class_{class_idx}")
-                        file_path = os.path.join(class_dir, f"{os.path.splitext(file_name)[0]}_slice_{i+1}.png")
+                        file_path = os.path.join(
+                            class_dir,
+                            f"{os.path.splitext(file_name)[0]}_slice_{i+1}.png",
+                        )
                         cv2.imwrite(file_path, combined_img)
-                        print(f"Slice {i+1} for class {class_idx} saved as {file_path}.")
-
+                        print(
+                            f"Slice {i+1} for class {class_idx} saved as {file_path}."
+                        )
 
 
 def old_read_nrrd_and_save_all_slices_cv2(image_dir, mask_dir):
@@ -311,10 +329,12 @@ def old_read_nrrd_and_save_all_slices_cv2(image_dir, mask_dir):
             print("resample")
             resampled_mask = resample_volume(mask, reference_image)
             print("resampled_mask shape", np.shape(resampled_mask))
-            print("type resampled_mask", type(resampled_mask)) # <class 'numpy.ndarray'>
+            print(
+                "type resampled_mask", type(resampled_mask)
+            )  # <class 'numpy.ndarray'>
             # resampled_mask_data = sitk.GetArrayFromImage(resampled_mask)
             resampled_mask_data = resampled_mask
-            
+
             np_mask = sitk.GetArrayFromImage(mask)
             # np_data = sitk.GetArrayFromImage(reference_image)
             np_data = sitk.GetArrayFromImage(adjusted_image)
@@ -325,18 +345,21 @@ def old_read_nrrd_and_save_all_slices_cv2(image_dir, mask_dir):
             break
             layer_0 = np_mask[23, :, :, 0]
             layer_1 = np_mask[23, :, :, 1]
-            
+
             # по идее надо вот их сравнить, то есть до и после
             layer_0 = resampled_mask_data[23, :, :, 0]
             layer_1 = resampled_mask_data[23, :, :, 1]
 
             # Получение уникальных значений и их количества для слоя 1
-            unique_values_layer_1, counts_layer_1 = np.unique(layer_1, return_counts=True)
-            print("Уникальные значения и их количество в resampled_mask_data[23, :, :, 1]:")
+            unique_values_layer_1, counts_layer_1 = np.unique(
+                layer_1, return_counts=True
+            )
+            print(
+                "Уникальные значения и их количество в resampled_mask_data[23, :, :, 1]:"
+            )
             for value, count in zip(unique_values_layer_1, counts_layer_1):
                 print(f"Value: {value}, Count: {count}")
-                
-        
+
             for layer in range(resampled_mask_data.shape[-1]):
                 output_dir = f"/home/alexskv/pochki/nrrd_output_images_cv2/{os.path.splitext(file_name)[0]}_layer_{layer+1}"
                 os.makedirs(output_dir, exist_ok=True)
@@ -346,12 +369,16 @@ def old_read_nrrd_and_save_all_slices_cv2(image_dir, mask_dir):
                     m = resampled_mask_data[i, :, :, layer]
 
                     unique_values, counts = np.unique(m, return_counts=True)
-                    print(f"Slice {i+1}, Layer {layer+1} unique values and their counts in mask:")
+                    print(
+                        f"Slice {i+1}, Layer {layer+1} unique values and their counts in mask:"
+                    )
                     for value, count in zip(unique_values, counts):
                         print(f"Value: {value}, Count: {count}")
 
                     if d.max() != 0:
-                        normalized_img = cv2.normalize(d, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+                        normalized_img = cv2.normalize(
+                            d, None, 0, 255, cv2.NORM_MINMAX
+                        ).astype(np.uint8)
                         gray_img = cv2.cvtColor(normalized_img, cv2.COLOR_GRAY2BGR)
                         color_contours_img = np.zeros_like(gray_img)
 
@@ -366,17 +393,20 @@ def old_read_nrrd_and_save_all_slices_cv2(image_dir, mask_dir):
 
                         for class_value, color in class_colors.items():
                             class_mask = (m == class_value).astype(np.uint8)
-                            contours, _ = cv2.findContours(class_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                            contours, _ = cv2.findContours(
+                                class_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+                            )
                             cv2.drawContours(color_contours_img, contours, -1, color, 1)
 
-                        combined_img = cv2.addWeighted(gray_img, 1, color_contours_img, 0.5, 0)
-                        file_path = os.path.join(output_dir, f"{os.path.splitext(file_name)[0]}_slice_{i+1}.png")
+                        combined_img = cv2.addWeighted(
+                            gray_img, 1, color_contours_img, 0.5, 0
+                        )
+                        file_path = os.path.join(
+                            output_dir,
+                            f"{os.path.splitext(file_name)[0]}_slice_{i+1}.png",
+                        )
                         cv2.imwrite(file_path, combined_img)
                         print(f"Slice {i+1}, Layer {layer+1} saved as {file_path}.")
-
-
-
-
 
 
 # Директория с изображениями и путь к файлу маски
@@ -384,9 +414,6 @@ image_dir = "/home/alexskv/data/Проект_Почки/готовые_част�
 mask_path = image_dir + "/" + "Segmentation_1.seg.nrrd"
 
 read_nrrd_and_save_all_slices_cv2(image_dir, image_dir)
-
-
-
 
 
 # image_dir = "/home/alexskv/data/Проект_Почки/готовые_1_часть/Sheremetjev MJu/3D"
@@ -409,5 +436,3 @@ read_nrrd_and_save_all_slices_cv2(image_dir, image_dir)
 # print(np.shape(resampled_mask))
 # print(np.shape(np_mask))
 # print(np.shape(np_image))
-
-
