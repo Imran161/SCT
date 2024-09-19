@@ -10,6 +10,7 @@ import cv2
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from transformers import AdamW, AutoModelForCausalLM, AutoProcessor, get_scheduler
+import torch.nn.functional as F
 from tqdm import tqdm
 from peft import LoraConfig, get_peft_model
 from PIL import Image
@@ -17,7 +18,7 @@ from PIL import Image
 
 CHECKPOINT = "microsoft/Florence-2-base-ft"
 REVISION = "refs/pr/6"
-DEVICE = torch.device("cuda:1")
+DEVICE = torch.device("cuda:0")
 
 model = AutoModelForCausalLM.from_pretrained(
     CHECKPOINT, trust_remote_code=True, revision=REVISION
@@ -224,24 +225,32 @@ peft_model.print_trainable_parameters()
 torch.cuda.empty_cache()
 
 
+# def custom_cross_entropy(logits, labels):
+#     """
+#     Логиты: (batch_size, num_classes)
+#     Лейблы: (batch_size,)
+#     """
+#     # Шаг 1: Применяем softmax к логитам
+#     probs = torch.softmax(logits, dim=-1)  # (batch_size, num_classes)
+#     # print("probs", probs)
+#     # print("probs shape", probs.shape)
+    
+#     # Шаг 2: Берем вероятность правильного класса
+#     true_class_probs = probs[torch.arange(len(labels)), labels]  # (batch_size,)
+    
+#     # Шаг 3: Вычисляем отрицательный логарифм вероятности правильного класса
+#     loss = -torch.log(true_class_probs)  # (batch_size,)
+    
+#     # Шаг 4: Усредняем потери по всем примерам
+#     return loss.mean()
+
+
 def custom_cross_entropy(logits, labels):
-    """
-    Логиты: (batch_size, num_classes)
-    Лейблы: (batch_size,)
-    """
-    # Шаг 1: Применяем softmax к логитам
-    probs = torch.softmax(logits, dim=-1)  # (batch_size, num_classes)
-    # print("probs", probs)
-    # print("probs shape", probs.shape)
-    
-    # Шаг 2: Берем вероятность правильного класса
-    true_class_probs = probs[torch.arange(len(labels)), labels]  # (batch_size,)
-    
-    # Шаг 3: Вычисляем отрицательный логарифм вероятности правильного класса
-    loss = -torch.log(true_class_probs)  # (batch_size,)
-    
-    # Шаг 4: Усредняем потери по всем примерам
-    return loss.mean()
+    # Примените вашу логику для кастомного лосса
+    # Например, это может быть обычная кросс-энтропия с модификациями
+    # Логиты должны быть нормализованы перед применением лосса
+    loss = F.cross_entropy(logits, labels)
+    return loss
 
 
 # def draw_annotations(image, prefix, suffix):
@@ -323,6 +332,7 @@ def train_model(
                     input_ids=input_ids, pixel_values=pixel_values, labels=labels
                 )
                 # print("outputs", outputs)
+                # break
                 
 
                 # Декодируем labels и logits обратно в текст для вывода
@@ -341,7 +351,7 @@ def train_model(
                 # print("outputs shape", outputs["logits"].shape)
                 # print("outputs", outputs["logits"])
                 
-                loss = outputs.loss
+                # loss = outputs.loss
                 ##########################################
                 
                 # тут мой лосс
@@ -363,6 +373,17 @@ def train_model(
                 # # Calculate the loss using custom cross entropy
                 
                 # loss = custom_cross_entropy(logits, labels)
+                
+                
+                
+                # вот так еще попробую
+                logits = outputs.logits
+
+                # Применяем кастомный лосс
+                logits = logits.view(-1, logits.size(-1))  # Преобразуем логиты в (batch_size * seq_len, vocab_size)
+                labels = labels.view(-1)  # Преобразуем метки в (batch_size * seq_len)
+                
+                loss = custom_cross_entropy(logits, labels)
                 
                 ###########################
 
@@ -419,7 +440,7 @@ def train_model(
                 
                     # было так
                     ##############################
-                    loss = outputs.loss
+                    # loss = outputs.loss
                     #############################
                     # мой лосс 
                     
@@ -428,6 +449,14 @@ def train_model(
                     # labels = labels.view(-1)  # (batch_size * seq_len)
                     # loss = custom_cross_entropy(logits, labels)
                     
+                    # вот так попробую
+                    logits = outputs.logits
+
+                    # Применяем кастомный лосс
+                    logits = logits.view(-1, logits.size(-1))  # Преобразуем логиты в (batch_size * seq_len, vocab_size)
+                    labels = labels.view(-1)  # Преобразуем метки в (batch_size * seq_len)
+                    
+                    loss = custom_cross_entropy(logits, labels)
                     ####################
                     
                     val_loss += loss.item()

@@ -227,12 +227,7 @@ def train_model(
     # Создание объекта SummaryWriter для записи логов
     # writer = SummaryWriter(log_dir=f"runs_sinusite/{experiment_name}_logs")
     writer = SummaryWriter(log_dir=f"runs_kidneys/{experiment_name}_logs")
-    # metrics_calculator = DetectionMetrics(mode="ML", num_classes=num_classes)
-    
-    # Создаем два объекта для подсчета метрик
-    metrics_calculator_train = DetectionMetrics(mode="ML", num_classes=num_classes)
-    metrics_calculator_val = DetectionMetrics(mode="ML", num_classes=num_classes)
-
+    metrics_calculator = DetectionMetrics(mode="ML", num_classes=num_classes)
 
     class_names_dict = {
         class_info["id"]: class_info["name"]
@@ -389,7 +384,7 @@ def train_model(
                 train_iou_sum += train_iou_batch
 
                 # для трейна метрики тоже посчитаю
-                metrics_calculator_train.update_counter(
+                metrics_calculator.update_counter(
                     masks,
                     outputs,  # outputs не шум
                 )  # , advanced_metrics=True)
@@ -409,7 +404,7 @@ def train_model(
 
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=UndefinedMetricWarning)
-            train_metrics = metrics_calculator_train.calc_metrics()
+            train_metrics = metrics_calculator.calc_metrics()
 
         # было так но я написал ниже, там для каждого класса метрика
         # for key, value in train_metrics.items():
@@ -521,7 +516,7 @@ def train_model(
 
                 val_iou_sum += val_iou_batch
 
-                metrics_calculator_val.update_counter(
+                metrics_calculator.update_counter(
                     masks_val,
                     outputs_val,  # не шум
                     # corrected_masks_val,  # шум
@@ -542,7 +537,7 @@ def train_model(
         # обработаю исключение но не знаю хорошая идея или нет
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=UndefinedMetricWarning)
-            val_metrics = metrics_calculator_val.calc_metrics()
+            val_metrics = metrics_calculator.calc_metrics()
 
         for key, value in val_metrics.items():
             if isinstance(value, torch.Tensor):
@@ -849,7 +844,7 @@ if __name__ == "__main__":
     use_class_weight = False
     use_pixel_weight = False
     use_pixel_opt = False
-    power = "1.6.1_kidneys_weak"  # focus или weak
+    power = "1.7.2_kidneys_weak"  # focus или weak
 
     loss_type = power.split("_")[-1]
     print("loss_type", loss_type)

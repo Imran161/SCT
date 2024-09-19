@@ -11,7 +11,7 @@ import torch
 DEVICE = torch.device("cuda:2")
 # DEVICE = torch.device("cpu")
 
-model_checkpoint = "/home/imran-nasyrov/model_checkpoints/1.5/epoch_3000"
+model_checkpoint = "/home/imran-nasyrov/model_checkpoints/1.6/epoch_143"
 # model_checkpoint = "/home/imran-nasyrov/model_checkpoints/1.2/epoch_120"
 # model_checkpoint = "microsoft/Florence-2-base-ft"
 
@@ -60,14 +60,19 @@ def run_example(task_prompt, text_input=None):
 
 # local_image_path = "/home/imran-nasyrov/cvat_jsonl/task_task_21_mart_23_lindenbraten_num2c-2023_03_21_15_15_33-coco 1.0/images/6mart23 (6530).jpg"
 # local_image_path = "/home/imran-nasyrov/cvat_jsonl/task_перелом-2022_11_30_20_31_59-coco 1.0/images/16.jpg"
-local_image_path = "/home/imran-nasyrov/cvat_mini/task_task_17_jule_23_pathology_anatomy_sinus_num2-2023_09_12_22_50_06-coco 1.0/images/105480892.jpg"
+# local_image_path = "/home/imran-nasyrov/cvat_mini/task_task_17_jule_23_pathology_anatomy_sinus_num2-2023_09_12_22_50_06-coco 1.0/images/105480892.jpg"
+
+# train lung
+# local_image_path = "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_1c-2024_02_26_15_44_35-coco 1.0/images/13_10_23_1 (1).jpg"
+# val lung
+local_image_path = "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_5с-2024_04_09_10_42_06-coco 1.0/images/13_10_23_5 (1).jpg"
 image = Image.open(local_image_path)
 
 
 # task_prompt = '<CAPTION_TO_PHRASE_GROUNDING>'
 # task_prompt = "<REFERRING_EXPRESSION_SEGMENTATION>" # {'CAPTION': '\nCT scan of the head and neck of a man with a large tumor in the middle of his head<loc_153><loc_113><loc_912><loc_998>\n'}
 task_prompt = "<CAPTION_TO_PHRASE_GROUNDING>"
-text_input = "Decrease in pneumatization of the paranasal sinuses"
+text_input = "Inorganic shadow.Sign."
 results, modified_image = run_example(task_prompt, text_input=text_input)
 print(results)
 

@@ -5,6 +5,7 @@ import os
 import cv2
 import numpy as np
 from tqdm import tqdm
+import sys
 
 # # это для синуситов я сам перевел классы
 
@@ -231,10 +232,10 @@ from googletrans import Translator
 from tqdm import tqdm
 
 # Путь к исходной папке с архивами
-source_dir = "/home/imran-nasyrov/cvat_lung/"
+source_dir = "/home/imran-nasyrov/cvat/"
 
 # Путь к папке, куда будут распаковываться архивы
-destination_dir = "/home/imran-nasyrov/cvat_lung_unzip/"
+destination_dir = "/home/imran-nasyrov/cvat_unzip/"
 
 # Файл для записи уже обработанных папок
 processed_dirs_file = "/home/imran-nasyrov/SCT/florence2/processed_dirs.txt"
@@ -258,9 +259,12 @@ else:
 # Функция для декодирования и перевода категорий
 def decode_and_translate_categories(categories):
     translated_categories = []
+    russian_names = []
     for category in categories:
         # Декодирование имени категории с UTF-8
         decoded_name = urllib.parse.unquote(category["name"])
+        print("decoded_name", decoded_name)
+        russian_names.append(decoded_name)
 
         # Проверка, что категория уже на английском (ASCII)
         if all(ord(char) < 128 for char in decoded_name):
@@ -274,6 +278,7 @@ def decode_and_translate_categories(categories):
         category["name"] = translated_name
         translated_categories.append(category)
 
+    print("russian_names", russian_names)
     return translated_categories
 
 
@@ -281,60 +286,63 @@ def decode_and_translate_categories(categories):
 with tqdm(total=len(os.listdir(source_dir)), desc="Processing directories") as pbar_dirs:
     for filename in os.listdir(source_dir):
         if filename.endswith(".zip"):
-            # Определяем имя папки, которая будет создана для распаковки
-            folder_name = filename[:-4]  # Убираем '.zip' из имени файла
+            # print("filename", filename)
+            if "task_task_13_oct_23_pat_fut_1c-2024_02_26_15_44_35-coco 1.0.zip" in filename:
+                # Определяем имя папки, которая будет создана для распаковки
+                folder_name = filename[:-4]  # Убираем '.zip' из имени файла
+                # sys.exit()
+                
+                # Пропускаем папки, которые уже были обработаны
+                if folder_name in processed_dirs:
+                    print(f"Папка {folder_name} уже обработана, пропускаем.")
+                    pbar_dirs.update(1)
+                    continue
 
-            # Пропускаем папки, которые уже были обработаны
-            if folder_name in processed_dirs:
-                print(f"Папка {folder_name} уже обработана, пропускаем.")
+                # Определяем полный путь к архиву
+                file_path = os.path.join(source_dir, filename)
+
+                folder_path = os.path.join(destination_dir, folder_name)
+
+                # Создаем папку для распакованных файлов
+                if not os.path.exists(folder_path):
+                    os.makedirs(folder_path)
+
+                # Распаковываем архив в созданную папку
+                with zipfile.ZipFile(file_path, "r") as zip_ref:
+                    zip_ref.extractall(folder_path)
+
+                print(f"Архив {filename} успешно распакован в {folder_path}")
+
+                # Путь к файлу instances_default.json
+                json_file_path = os.path.join(
+                    folder_path, "annotations", "instances_default.json"
+                )
+
+                # Проверяем, существует ли файл
+                if os.path.exists(json_file_path):
+                    # Открываем и читаем JSON файл
+                    with open(json_file_path, "r", encoding="utf-8") as json_file:
+                        data = json.load(json_file)
+
+                    # Декодируем и переводим категории
+                    try:
+                        data["categories"] = decode_and_translate_categories(data["categories"])
+###########################################
+                        # # Сохраняем изменения обратно в JSON файл
+                        # with open(json_file_path, "w", encoding="utf-8") as json_file:
+                        #     json.dump(data, json_file, ensure_ascii=False)
+
+                        # print(f"Файл {json_file_path} обновлен.")
+
+                        # # Добавляем папку в список обработанных
+                        # with open(processed_dirs_file, "a") as f:
+                        #     f.write(folder_name + "\n")
+                        # processed_dirs.add(folder_name)
+############################################
+                    except Exception as e:
+                        print(f"Ошибка при обработке файла {json_file_path}: {e}")
+                        break  # Прерываем выполнение при ошибке
+
                 pbar_dirs.update(1)
-                continue
-
-            # Определяем полный путь к архиву
-            file_path = os.path.join(source_dir, filename)
-
-            folder_path = os.path.join(destination_dir, folder_name)
-
-            # Создаем папку для распакованных файлов
-            if not os.path.exists(folder_path):
-                os.makedirs(folder_path)
-
-            # Распаковываем архив в созданную папку
-            with zipfile.ZipFile(file_path, "r") as zip_ref:
-                zip_ref.extractall(folder_path)
-
-            print(f"Архив {filename} успешно распакован в {folder_path}")
-
-            # Путь к файлу instances_default.json
-            json_file_path = os.path.join(
-                folder_path, "annotations", "instances_default.json"
-            )
-
-            # Проверяем, существует ли файл
-            if os.path.exists(json_file_path):
-                # Открываем и читаем JSON файл
-                with open(json_file_path, "r", encoding="utf-8") as json_file:
-                    data = json.load(json_file)
-
-                # Декодируем и переводим категории
-                try:
-                    data["categories"] = decode_and_translate_categories(data["categories"])
-
-                    # Сохраняем изменения обратно в JSON файл
-                    with open(json_file_path, "w", encoding="utf-8") as json_file:
-                        json.dump(data, json_file, ensure_ascii=False)
-
-                    print(f"Файл {json_file_path} обновлен.")
-
-                    # Добавляем папку в список обработанных
-                    with open(processed_dirs_file, "a") as f:
-                        f.write(folder_name + "\n")
-                    processed_dirs.add(folder_name)
-
-                except Exception as e:
-                    print(f"Ошибка при обработке файла {json_file_path}: {e}")
-                    break  # Прерываем выполнение при ошибке
-
-            pbar_dirs.update(1)
 
 print("Процесс завершен.")
