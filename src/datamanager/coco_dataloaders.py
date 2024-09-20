@@ -6,11 +6,11 @@ import numpy as np
 import torch
 from torch.utils.data import ConcatDataset, DataLoader, Subset
 
-from coco_classes import (
+from .coco_classes import (
     SCT_base_classes,
     SCT_out_classes,
 )
-from json_handler import JsonHandler
+from .json_handler import JsonHandler
 
 
 class SINUSITE_COCODataLoader:

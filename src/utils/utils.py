@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-from losses import (
+from ..losses.losses import (
     bce,
     global_focus_loss,
     strong_combined_loss,
@@ -15,18 +15,6 @@ from losses import (
 )
 
 SMOOTH = 1e-8
-
-
-def set_seed(seed):
-    random.seed(seed)
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.enabled = False
 
 
 def save_best_metrics_to_csv(best_metrics, csv_file):
@@ -178,7 +166,7 @@ class ExperimentSetup:
             self.use_pixel = "off"
         else:
             for batch_idx, train_batch in enumerate(self.train_loader):
-                images = train_batch["images"]  
+                images = train_batch["images"]
                 batch_size, channels, height, width = images.shape
 
                 print(f"Batch size: {batch_size}")
@@ -187,7 +175,9 @@ class ExperimentSetup:
                 print(f"Width: {width}")
                 break
 
-            pixel_count_data = self.batch_size * len(self.train_loader) * height * width #256 * 256
+            pixel_count_data = (
+                self.batch_size * len(self.train_loader) * height * width
+            )  # 256 * 256
             pixel_pos_weights = pixel_count_data / (2 * self.pixel_TotalTrain)
             pixel_neg_weights = pixel_count_data / (
                 2 * (pixel_count_data - self.pixel_TotalTrain)

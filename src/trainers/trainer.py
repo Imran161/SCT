@@ -6,21 +6,26 @@ import cv2
 import numpy as np
 import segmentation_models_pytorch as smp
 import torch
-from coco_classes import (
-    kidneys_base_classes,
-    kidneys_pat_out_classes,
-)
-from coco_dataloaders import SINUSITE_COCODataLoader
+from inference import test_model
+from metrics import DetectionMetrics
 from sklearn.exceptions import UndefinedMetricWarning
 from torch.optim import Adam
 from torch.utils.data._utils.collate import default_collate
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from inference import test_model
-from metrics import DetectionMetrics
-from transforms import SegTransform
-from utils import ExperimentSetup, iou_metric, save_best_metrics_to_csv, set_seed
+from ..datamanager.coco_classes import (
+    kidneys_base_classes,
+    kidneys_pat_out_classes,
+)
+from ..datamanager.coco_dataloaders import SINUSITE_COCODataLoader
+from ..transforms.transforms import SegTransform
+from ..utils.seed import set_seed
+from ..utils.utils import (
+    ExperimentSetup,
+    iou_metric,
+    save_best_metrics_to_csv,
+)
 
 set_seed(64)
 
