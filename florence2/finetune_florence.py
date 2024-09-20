@@ -342,8 +342,8 @@ def train_model(
                 )
                 
                 # Печатаем вход и выход модели
-                print(f"True Labels: {decoded_labels}")
-                print(f"Model Outputs: {decoded_outputs}")
+                # print(f"True Labels: {decoded_labels}")
+                # print(f"Model Outputs: {decoded_outputs}")
                 #########################################
                 # было так
                 # print("labels shape", labels.shape)
@@ -435,8 +435,8 @@ def train_model(
                     )
                     
                     # Печатаем вход и выход модели
-                    print(f"True Labels: {decoded_labels}")
-                    print(f"Model Outputs: {decoded_outputs}")
+                    # print(f"True Labels: {decoded_labels}")
+                    # print(f"Model Outputs: {decoded_outputs}")
                 
                     # было так
                     ##############################
@@ -483,7 +483,7 @@ def train_model(
 
 EPOCHS = 1500
 LR = 5e-6
-experiment_name = "1.6"
+experiment_name = "1.7"
 
 train_model(
     experiment_name,

@@ -6,8 +6,7 @@ import cv2
 import numpy as np
 import segmentation_models_pytorch as smp
 import torch
-from inference import test_model
-from metrics import DetectionMetrics
+from ..metrics.metrics import DetectionMetrics
 from sklearn.exceptions import UndefinedMetricWarning
 from torch.optim import Adam
 from torch.utils.data._utils.collate import default_collate
@@ -20,6 +19,7 @@ from ..datamanager.coco_classes import (
 )
 from ..datamanager.coco_dataloaders import SINUSITE_COCODataLoader
 from ..transforms.transforms import SegTransform
+from ..utils.inference import test_model
 from ..utils.seed import set_seed
 from ..utils.utils import (
     ExperimentSetup,
@@ -777,7 +777,7 @@ if __name__ == "__main__":
     print("len val_loader", len(val_loader))
     print("len train_loader", len(train_loader))
 
-    device = torch.device("cuda:2")
+    device = torch.device("cuda:0")
     print(device)
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
 
@@ -876,7 +876,7 @@ if __name__ == "__main__":
     use_class_weight = False
     use_pixel_weight = False
     use_pixel_opt = False
-    power = "1.6.1_kidneys_weak"  # focus или weak
+    power = "1.6.2_test_new_code_kidneys_weak"  # focus или weak
 
     loss_type = power.split("_")[-1]
     print("loss_type", loss_type)

@@ -3,13 +3,11 @@ import cv2
 import os
 from tqdm import tqdm
 
-from img_visualizer import ImageVisualizer
-from metrics import DetectionMetrics
-from utils import save_best_metrics_to_csv
+from .img_visualizer import ImageVisualizer
+from ..metrics.metrics import DetectionMetrics
 import matplotlib.pyplot as plt
 import numpy as np
 from torchvision import transforms
-# from transforms import SegTransform
 
 
 def min_max_normalize(tensor):
