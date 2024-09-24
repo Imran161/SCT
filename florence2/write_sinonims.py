@@ -5,6 +5,16 @@ import urllib.parse
 from googletrans import Translator
 from tqdm import tqdm
 
+
+
+
+
+# тут просто все категории из моих jsonl сохранятся в файл
+
+
+
+
+
 # Путь к исходной папке с архивами
 source_dir = "/home/imran-nasyrov/cvat/"
 

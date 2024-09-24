@@ -143,13 +143,14 @@ def collate_fn(batch):
     return inputs, answers
 
 
-root_directory_path = "/home/imran-nasyrov/cvat_mini"
+root_directory_path = "/home/imran-nasyrov/cvat_sinonyms"
+# root_directory_path = "/home/imran-nasyrov/cvat_mini"
 # root_directory_path = "/home/imran-nasyrov/cvat_phrase"
 # root_directory_path = "/home/imran-nasyrov/cvat_jsonl"
 # root_directory_path = "/home/imran-nasyrov/sinusite_jsonl"
 
 # вот так надо!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# train_subdirectories, val_subdirectories = split_directories(root_directory_path)
+train_subdirectories, val_subdirectories = split_directories(root_directory_path)
 
 # а это для mini
 # train_subdirectories = ["/home/imran-nasyrov/cvat_mini/task_task_17_jule_23_pathology_anatomy_sinus_num2-2023_09_12_22_50_06-coco 1.0"]
@@ -157,23 +158,23 @@ root_directory_path = "/home/imran-nasyrov/cvat_mini"
 
 
 # это чисто легкие
-train_subdirectories = [
-    "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_1c-2024_02_26_15_44_35-coco 1.0",
-    "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_2с-2024_02_16_02_27_35-coco 1.0",
-    "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_3c-2024_04_24_19_39_16-coco 1.0",
-    "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_4c-2024_03_29_13_08_59-coco 1.0",
-    "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_6с-2024_04_02_10_23_13-coco 1.0",
-    "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_7с-2024_03_15_17_38_41-coco 1.0",
-    "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_8с-2024_02_27_18_08_45-coco 1.0",
-    "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_9с-2023_11_14_19_54_06-coco 1.0"
-    "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_10с-2024_05_12_10_15_51-coco 1.0",
-    "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_11с-2023_11_16_09_13_16-coco 1.0",
-    "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_12с-2024_03_01_18_54_17-coco 1.0",
-]
-val_subdirectories = [
-    "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_13с-2023_11_19_18_58_39-coco 1.0",
-    "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_5с-2024_04_09_10_42_06-coco 1.0",
-]
+# train_subdirectories = [
+#     "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_1c-2024_02_26_15_44_35-coco 1.0",
+#     "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_2с-2024_02_16_02_27_35-coco 1.0",
+#     "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_3c-2024_04_24_19_39_16-coco 1.0",
+#     "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_4c-2024_03_29_13_08_59-coco 1.0",
+#     "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_6с-2024_04_02_10_23_13-coco 1.0",
+#     "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_7с-2024_03_15_17_38_41-coco 1.0",
+#     "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_8с-2024_02_27_18_08_45-coco 1.0",
+#     "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_9с-2023_11_14_19_54_06-coco 1.0"
+#     "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_10с-2024_05_12_10_15_51-coco 1.0",
+#     "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_11с-2023_11_16_09_13_16-coco 1.0",
+#     "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_12с-2024_03_01_18_54_17-coco 1.0",
+# ]
+# val_subdirectories = [
+#     "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_13с-2023_11_19_18_58_39-coco 1.0",
+#     "/home/imran-nasyrov/cvat_phrase/task_task_13_oct_23_pat_fut_5с-2024_04_09_10_42_06-coco 1.0",
+# ]
 
 train_dataset = DetectionDataset(subdirectories=train_subdirectories)
 val_dataset = DetectionDataset(subdirectories=val_subdirectories)
@@ -351,7 +352,7 @@ def train_model(
                 # print("outputs shape", outputs["logits"].shape)
                 # print("outputs", outputs["logits"])
                 
-                # loss = outputs.loss
+                loss = outputs.loss
                 ##########################################
                 
                 # тут мой лосс
@@ -377,13 +378,13 @@ def train_model(
                 
                 
                 # вот так еще попробую
-                logits = outputs.logits
+                # logits = outputs.logits
 
-                # Применяем кастомный лосс
-                logits = logits.view(-1, logits.size(-1))  # Преобразуем логиты в (batch_size * seq_len, vocab_size)
-                labels = labels.view(-1)  # Преобразуем метки в (batch_size * seq_len)
+                # # Применяем кастомный лосс
+                # logits = logits.view(-1, logits.size(-1))  # Преобразуем логиты в (batch_size * seq_len, vocab_size)
+                # labels = labels.view(-1)  # Преобразуем метки в (batch_size * seq_len)
                 
-                loss = custom_cross_entropy(logits, labels)
+                # loss = custom_cross_entropy(logits, labels)
                 
                 ###########################
 
@@ -440,7 +441,7 @@ def train_model(
                 
                     # было так
                     ##############################
-                    # loss = outputs.loss
+                    loss = outputs.loss
                     #############################
                     # мой лосс 
                     
@@ -450,13 +451,13 @@ def train_model(
                     # loss = custom_cross_entropy(logits, labels)
                     
                     # вот так попробую
-                    logits = outputs.logits
+                    # logits = outputs.logits
 
-                    # Применяем кастомный лосс
-                    logits = logits.view(-1, logits.size(-1))  # Преобразуем логиты в (batch_size * seq_len, vocab_size)
-                    labels = labels.view(-1)  # Преобразуем метки в (batch_size * seq_len)
+                    # # Применяем кастомный лосс
+                    # logits = logits.view(-1, logits.size(-1))  # Преобразуем логиты в (batch_size * seq_len, vocab_size)
+                    # labels = labels.view(-1)  # Преобразуем метки в (batch_size * seq_len)
                     
-                    loss = custom_cross_entropy(logits, labels)
+                    # loss = custom_cross_entropy(logits, labels)
                     ####################
                     
                     val_loss += loss.item()
@@ -483,7 +484,7 @@ def train_model(
 
 EPOCHS = 1500
 LR = 5e-6
-experiment_name = "1.7"
+experiment_name = "1.8"
 
 train_model(
     experiment_name,
@@ -496,137 +497,3 @@ train_model(
 )
 
 
-
-# import os
-
-# # Указываем директорию, куда будем сохранять изображения и соответствующие данные
-# output_dir = "florence_dataloader"
-# if not os.path.exists(output_dir):
-#     os.makedirs(output_dir)
-
-# # Итерируемся по train_loader или val_loader без обучения
-# for i, (inputs, answers) in enumerate(train_loader):
-#     # Получаем изображения и префиксы/суффиксы
-#     images = inputs["pixel_values"]  # изображения в тензорах
-#     prefixes = inputs["input_ids"]  # префиксы в тензорах
-#     suffixes = answers  # суффиксы, уже в текстовом формате
-
-#     # Обрабатываем каждое изображение в батче
-#     for j in range(images.size(0)):
-#         # Преобразуем изображение обратно в PIL формат для сохранения
-#         image = images[j].cpu().detach().numpy()
-#         image = np.transpose(image, (1, 2, 0))  # Приводим размерности в порядок
-#         image = (image * 255).astype(np.uint8)  # Возвращаем из нормализации
-#         image_pil = Image.fromarray(image)
-        
-#         # Создаем имя файла на основе префикса
-#         prefix_text = processor.tokenizer.decode(prefixes[j].cpu().detach().numpy(), skip_special_tokens=True)
-#         prefix_clean = prefix_text.replace(" ", "_").replace("/", "_")  # Убираем недопустимые символы
-        
-#         # Определяем путь сохранения изображения
-#         image_save_path = os.path.join(output_dir, f"{prefix_clean}_{i}_{j}.jpg")
-        
-#         # Сохраняем изображение
-#         image_pil.save(image_save_path)
-        
-#         # Сохраняем суффикс в текстовый файл
-#         suffix_save_path = os.path.join(output_dir, f"{prefix_clean}_{i}_{j}_suffix.txt")
-#         with open(suffix_save_path, "w") as f:
-#             f.write(suffixes[j])
-    
-#     # Останавливаемся на небольшом количестве итераций для проверки
-#     if i > 5:  # Если нужно, измените это значение для большего количества данных
-#         break
-
-# print(f"Сохранено {i * BATCH_SIZE} изображений и их суффиксов в директорию {output_dir}")
-
-
-
-
-
-# import os
-# import cv2
-# import numpy as np
-# import torch
-
-# # Создаем директорию для сохранения изображений, если она не существует
-# output_image_dir = "florence_dataloader"
-# os.makedirs(output_image_dir, exist_ok=True)
-
-# def save_images_with_annotations(batch_images, batch_prefixes, batch_suffixes, epoch):
-#     """
-#     Сохраняет изображения с аннотациями (префиксами и суффиксами).
-    
-#     :param batch_images: Тензор изображений (batch_size, 3, height, width)
-#     :param batch_prefixes: Список префиксов
-#     :param batch_suffixes: Список суффиксов
-#     :param epoch: Номер текущей эпохи
-#     """
-#     for i in range(len(batch_images)):
-#         prefix = batch_prefixes[i]
-#         suffix = batch_suffixes[i]
-        
-#         # Извлекаем изображение из тензора и преобразуем его в формат OpenCV
-#         image = batch_images[i].cpu().numpy().transpose(1, 2, 0)
-#         image = (image * 255).astype(np.uint8)
-#         image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)  # Преобразуем в формат BGR для OpenCV
-        
-#         # Обрабатываем суффикс и рисуем аннотации
-#         annotated_image = draw_annotations(image, prefix, suffix)
-        
-#         # Сохраняем изображение
-#         cv2.imwrite(f"{output_image_dir}/epoch_{epoch}_image_{i}.jpg", annotated_image)
-
-# def draw_annotations(image, prefix, suffix):
-#     """
-#     Добавляет текстовые аннотации и рисует bounding box на изображении.
-    
-#     :param image: Исходное изображение (numpy массив)
-#     :param prefix: Префикс (текст)
-#     :param suffix: Суффикс с координатами для bounding box
-#     :return: Изображение с аннотациями
-#     """
-#     # Рисуем текст префикса
-#     cv2.putText(image, prefix, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
-
-#     # Обработка и разделение суффикса на класс и координаты
-#     parts = suffix.split('<loc_')
-#     class_name = parts[0].rstrip('<>')
-
-#     height, width, _ = image.shape
-#     for i in range(1, len(parts), 4):
-#         if i + 3 < len(parts):
-#             try:
-#                 x1 = int(parts[i].split('>')[0]) * width // 1000
-#                 y1 = int(parts[i + 1].split('>')[0]) * height // 1000
-#                 x2 = int(parts[i + 2].split('>')[0]) * width // 1000
-#                 y2 = int(parts[i + 3].split('>')[0]) * height // 1000
-
-#                 # Рисуем прямоугольник и текст класса
-#                 cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
-#                 cv2.putText(image, class_name, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-#             except (IndexError, ValueError) as e:
-#                 print(f"Error processing bounding box: {e}")
-
-#     return image
-
-# # Пример вызова функции после загрузки батча данных
-# def process_batch(batch, epoch):
-#     inputs, answers = batch
-#     batch_images = inputs["pixel_values"]
-#     batch_prefixes = inputs["input_ids"]  # Если это токены, нужно декодировать их в текст
-#     batch_prefixes = [processor.decode(prefix) for prefix in batch_prefixes]  # Преобразуем в текст
-
-#     # Сохраняем изображения с аннотациями
-#     save_images_with_annotations(batch_images, batch_prefixes, answers, epoch)
-
-
-# # Вызываем функцию для каждого батча в DataLoader
-# for epoch in range(EPOCHS):
-#     for i, batch in enumerate(train_loader):
-#         # Обрабатываем и сохраняем изображения
-#         process_batch(batch, epoch)
-        
-#         # (Опционально) Если вы хотите сохранить только несколько батчей для проверки
-#         if i >= 5:  # Сохраняем только первые 5 батчей
-#             break
