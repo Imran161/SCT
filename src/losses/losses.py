@@ -1,206 +1,179 @@
 import torch
-import torch.nn.functional as F
+
+SMOOTH = 1e-8
 
 
-def binary_cross_entropy(outputs: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
-    loss = -labels * torch.log(outputs + 0.00001) - (1 - labels) * torch.log(
-        1 - outputs + 0.00001
-    )
-    return loss
+class BCEMeanLoss:
+    @staticmethod
+    def forward(input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        loss = -target * torch.log(input + 0.00001) - (1 - target) * torch.log(
+            1 - input + 0.00001
+        )
+        return loss.mean()
 
 
-def bce(outputs: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
-    loss = -labels * torch.log(outputs + 0.00001) - (1 - labels) * torch.log(
-        1 - outputs + 0.00001
-    )
-    return loss.mean()
+class BCELoss:
+    @staticmethod
+    def forward(input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        loss = -target * torch.log(input + 0.00001) - (1 - target) * torch.log(
+            1 - input + 0.00001
+        )
+        return loss
 
 
-def focal_loss(
-    output: torch.Tensor,
-    target: torch.Tensor,
-    gamma: float = 2.0,
-    # alpha = 1,
-    alpha: torch.Tensor = None,
-    # pixel_weight: bool = True,
-    reduction: str = "mean",
-    normalized: bool = False,
-    reduced_threshold=None,
-    eps: float = 1e-4,
-) -> torch.Tensor:
-    size = target.shape
-    # print("size", size) # torch.Size([16, 4, 256, 256])
-    target = target.type(output.type())
+class FocalLoss:
+    def __init__(
+        self,
+        gamma: float = 2.0,
+        alpha: torch.Tensor = None,
+        reduction: str = "mean",
+        normalized: bool = False,
+        reduced_threshold=None,
+        eps: float = 1e-4,
+    ):
+        self.gamma = gamma
+        self.alpha = alpha
+        self.reduction = reduction
+        self.normalized = normalized
+        self.reduced_threshold = reduced_threshold
+        self.eps = eps
 
-    loss_ce = binary_cross_entropy(output, target)
+    def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        size = target.shape
+        target = target.type(input.type())
 
-    # веса для focal loss
-    # pt = torch.exp(loss_ce)
-    pt = torch.exp(-loss_ce)
-    
-    if reduced_threshold is None:
-        focal_term = (1.0 - pt).pow(gamma)
-    else:
-        focal_term = ((1.0 - pt) / reduced_threshold).pow(gamma)
-        focal_term[pt < reduced_threshold] = 1
+        loss_ce = BCELoss.forward(input, target)
 
-    loss_focal = focal_term * loss_ce
+        pt = torch.exp(-loss_ce)
 
-    if alpha is not None:
+        if self.reduced_threshold is None:
+            focal_term = (1.0 - pt).pow(self.gamma)
+        else:
+            focal_term = ((1.0 - pt) / self.reduced_threshold).pow(self.gamma)
+            focal_term[pt < self.reduced_threshold] = 1
+
+        loss_focal = focal_term * loss_ce
+
+        if self.alpha is not None:
+            for i in range(size[0]):
+                for j in range(size[1]):
+                    weight_matrix = (
+                        (target[i, j]) * self.alpha[0][j]
+                        + (1 - target[i, j]) * self.alpha[1][j]
+                    )
+                    loss_focal[i, j] = loss_focal[i, j] * weight_matrix
+
+        if self.reduction == "mean":
+            loss_focal = loss_focal.mean()
+        elif self.reduction == "sum":
+            loss_focal = loss_focal.sum()
+        elif self.reduction == "batchwise_mean":
+            loss_focal = loss_focal.sum(0)
+
+        return loss_focal
+
+
+class WeakIoULoss:
+    def __init__(self, class_weight=None):
+        self.class_weight = class_weight
+
+    def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        size = target.shape
+
+        intersection = (input * target).float().sum((-1, -2))
+        union = ((input + target).float().sum((-1, -2)) - intersection).sum((-1, -2))
+        iou = 1 - (intersection) / (union + SMOOTH)
+
         for i in range(size[0]):
             for j in range(size[1]):
-                weight_matrix = (
-                    (target[i, j]) * alpha[0][j] + (1 - target[i, j]) * alpha[1][j]
-                )
+                if target[i, j].max() == 0:
+                    iou[i, j] *= 0
+                else:
+                    if self.class_weight is not None:
+                        iou[i, j] *= self.class_weight[0][j]
 
-                loss_focal[i, j] = loss_focal[i, j] * weight_matrix
-
-    # Но ваще это нужно
-    # if alpha is not None:
-    #     loss_focal *= alpha * target + (1 - alpha) * (1 - target)
-
-    # if normalized:
-    #     norm_factor = focal_term.sum().clamp_min(eps)
-    #     loss_focal /= norm_factor
-
-    if reduction == "mean":
-        loss_focal = loss_focal.mean()
-    if reduction == "sum":
-        loss_focal = loss_focal.sum()
-    if reduction == "batchwise_mean":
-        loss_focal = loss_focal.sum(0)
-
-    return loss_focal
+        return iou.mean()
 
 
-def weak_iou_loss(outputs: torch.Tensor, labels: torch.Tensor, class_weight=None):
-    SMOOTH = 1e-8
-    size = labels.shape
+class StrongIoULoss:
+    def __init__(self, class_weight=None):
+        self.class_weight = class_weight
 
-    intersection = (outputs * labels).float().sum((-1, -2))
-    union = ((outputs + labels).float().sum((-1, -2)) - intersection).sum((-1, -2))
-    iou = 1 - (intersection) / (union + SMOOTH)
+    def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        size = target.shape
 
-    for i in range(size[0]):
-        for j in range(size[1]):
-            if labels[i, j].max() == 0:
-                iou[i, j] *= 0
-            else:
-                if class_weight is not None:
-                    # [0][j] положительный вес класса j
-                    iou[i, j] *= class_weight[0][j]
+        intersection = (input * target).float().sum((-1, -2))
+        union = ((input + target).float().sum((-1, -2)) - intersection).sum((-1, -2))
+        iou = 1 - (intersection) / (union + SMOOTH)
 
-    return iou.mean()
+        count = 0
+        for i in range(size[0]):
+            for j in range(size[1]):
+                if target[i, j].max() == 1:
+                    count += 1
+                    if self.class_weight is not None:
+                        iou[i, j] *= self.class_weight[2][j]
+                else:
+                    iou[i, j] *= 0
 
-
-def strong_iou_loss(outputs: torch.Tensor, labels: torch.Tensor, class_weight=None):
-    SMOOTH = 1e-8
-    size = labels.shape
-
-    intersection = (outputs * labels).float().sum((-1, -2))
-    union = ((outputs + labels).float().sum((-1, -2)) - intersection).sum((-1, -2))
-    iou = 1 - (intersection) / (union + SMOOTH)
-
-    count = 0
-    for i in range(size[0]):
-        for j in range(size[1]):
-            if labels[i, j].max() == 1:
-                count += 1
-                if class_weight is not None:
-                    iou[i, j] *= class_weight[2][j]
-
-            else:
-                iou[i, j] *= 0
-
-    if count == 0:
-        return iou.sum() * 0
-    # else:
-    return iou.sum() / count
+        if count == 0:
+            return iou.sum() * 0
+        return iou.sum() / count
 
 
-def weak_combined_loss(output, target, class_weight, alpha):
-    loss1 = focal_loss(
-        output,
-        target,
-        gamma=2.0,
-        #    alpha=1,
-        alpha=alpha,
-        #    pixel_weight = pixel_weight,
-        reduction="mean",
-        normalized=False,
-        reduced_threshold=None,
-        eps=1e-4,
-    )
+class WeakCombinedLoss:
+    def __init__(self, class_weight, alpha):
+        self.focal_loss = FocalLoss(alpha=alpha)
+        self.weak_iou_loss = WeakIoULoss(class_weight)
 
-    loss2 = weak_iou_loss(output, target, class_weight)
-    return (loss1 + loss2) / 2
-
-    # return loss1
+    def forward(self, input, target):
+        loss1 = self.focal_loss.forward(input, target)
+        loss2 = self.weak_iou_loss.forward(input, target)
+        return (loss1 + loss2) / 2
 
 
-def strong_combined_loss(output, target, class_weight, alpha):
-    loss1 = focal_loss(
-        output,
-        target,
-        gamma=2.0,
-        #    alpha=1,
-        alpha=alpha,
-        #    pixel_weight = pixel_weight,
-        reduction="mean",
-        normalized=False,
-        reduced_threshold=None,
-        eps=1e-4,
-    )
+class StrongCombinedLoss:
+    def __init__(self, class_weight, alpha):
+        self.focal_loss = FocalLoss(alpha=alpha)
+        self.strong_iou_loss = StrongIoULoss(class_weight)
 
-    loss2 = strong_iou_loss(output, target, class_weight)
-    return (loss1 + loss2) / 2
+    def forward(self, input, target):
+        loss1 = self.focal_loss.forward(input, target)
+        loss2 = self.strong_iou_loss.forward(input, target)
+        return (loss1 + loss2) / 2
 
 
-def global_focus_loss(
-    label, true_label, global_loss_sum, global_loss_numel, train_mode=True, mode="ML"
-):
-    smooth = 0.00001
+class GlobalFocusLoss:
+    def __init__(self, mode="ML"):
+        self.mode = mode
+        self.global_loss_sum = 0.0
+        self.global_loss_numel = 0
 
-    if mode == "ML":
-        loss_bce = -(
-            true_label * torch.log(label) + (1 - true_label) * torch.log(1 - label)
-        )
+    def forward(self, input: torch.Tensor, target: torch.Tensor, train_mode=True):
+        if self.mode == "ML":
+            loss_bce = -(
+                target * torch.log(input + SMOOTH)
+                + (1 - target) * torch.log(1 - input + SMOOTH)
+            )
 
-    if mode == "MC":
-        logged_label = torch.log(label)
-        loss_bce = -true_label * logged_label
+        elif self.mode == "MC":
+            loged_target = torch.log(input + SMOOTH)
+            loss_bce = -target * loged_target
 
-    if train_mode:
-        global_loss_sum += loss_bce.sum().item()
-        global_loss_numel += loss_bce.numel()
+        if train_mode:
+            self.global_loss_sum += loss_bce.sum().item()
+            self.global_loss_numel += loss_bce.numel()
 
-        pt = torch.exp(loss_bce - global_loss_sum / global_loss_numel)
-        loss = loss_bce * pt
-        loss_mean = torch.mean(loss)
+            pt = torch.exp(loss_bce - self.global_loss_sum / self.global_loss_numel)
+            loss = loss_bce * pt
+            loss_mean = torch.mean(loss)
 
-    else:
-        loss_mean = torch.mean(loss_bce)
+        else:
+            loss_mean = torch.mean(loss_bce)
 
-    return loss_mean, global_loss_sum, global_loss_numel
+        return loss_mean
 
-
-def update_global_stats(global_stats, loss_bce, alpha=0.99):
-    """
-    Обновляет глобальные статистики используя скользящее среднее.
-
-    :param global_stats: словарь с текущими значениями global_loss_sum и global_loss_numel
-    :param loss_bce: текущие значения потерь (тензор)
-    :param alpha: коэффициент скользящего среднего (чем ближе к 1, тем медленнее обновление)
-    :return: обновленные глобальные статистики
-    """
-    new_sum = loss_bce.sum().item()
-    new_numel = loss_bce.numel()
-
-    global_stats["global_loss_sum"] = (
-        alpha * global_stats["global_loss_sum"] + (1 - alpha) * new_sum
-    )
-    global_stats["global_loss_numel"] = (
-        alpha * global_stats["global_loss_numel"] + (1 - alpha) * new_numel
-    )
-
-    return global_stats
+    def reset_global_loss(self):
+        """Сбросить накопленные значения потерь."""
+        self.global_loss_sum = 0.0
+        self.global_loss_numel = 0

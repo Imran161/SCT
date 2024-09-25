@@ -360,19 +360,12 @@ def train_model(
                         mode="ML",
                     )
 
-                    # global_stats["global_loss_sum"] += loss_bce.sum().item()
-                    # global_stats["global_loss_numel"] += loss_bce.numel()
+                    #####################################
+                    # это не надо уже, в самом лоссе все считается
+                    # global_stats["global_loss_sum"] = global_loss_sum  # / n
+                    # global_stats["global_loss_numel"] = global_loss_numel  # / n
 
-                    global_stats["global_loss_sum"] = global_loss_sum  # / n
-                    global_stats["global_loss_numel"] = global_loss_numel  # / n
-
-                    print("global_stats", global_stats)
-
-                    # global_stats = update_global_stats(global_stats, loss_bce)
-
-                    # +=global_stats["global_loss_sum"] / (k*a)
-                    # k+=1
-                    # float64 сделать чтобы без переполнения была
+                    # print("global_stats", global_stats)
 
                 elif loss_type == "bce":
                     loss = criterion(outputs, masks)
@@ -526,6 +519,7 @@ def train_model(
                     val_loss_sum += criterion(outputs_val, masks_val, None, None).item()
 
                 elif loss_type == "focus":
+                    criterion.reset_global_loss()  # Надо метод в валидации делать reset_global_loss
                     val_loss, _, _ = criterion(
                         outputs_val,
                         masks_val,
