@@ -1,6 +1,6 @@
 import torch
 
-SMOOTH = 1e-8
+SMOOTH = 1e-8  # вот это потом можно в отдельный файл с константами перенести
 
 
 class BCEMeanLoss:
