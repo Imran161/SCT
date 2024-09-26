@@ -1,3 +1,5 @@
+этот файл назвать base_classes и разнести на два файла базовый и выходные классы
+
 SCT_base_classes = [
     {"id": 1, "name": "1", "summable_masks": [1], "subtractive_masks": []},
     {"id": 2, "name": "2", "summable_masks": [2], "subtractive_masks": []},

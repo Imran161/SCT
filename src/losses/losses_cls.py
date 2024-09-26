@@ -6,8 +6,8 @@ SMOOTH = 1e-8  # вот это потом можно в отдельный фа�
 class BCEMeanLoss:
     @staticmethod
     def forward(input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        loss = -target * torch.log(input + 0.00001) - (1 - target) * torch.log(
-            1 - input + 0.00001
+        loss = -target * torch.log(input + SMOOTH) - (1 - target) * torch.log(
+            1 - input + SMOOTH
         )
         return loss.mean()
 
@@ -15,8 +15,8 @@ class BCEMeanLoss:
 class BCELoss:
     @staticmethod
     def forward(input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        loss = -target * torch.log(input + 0.00001) - (1 - target) * torch.log(
-            1 - input + 0.00001
+        loss = -target * torch.log(input + SMOOTH) - (1 - target) * torch.log(
+            1 - input + SMOOTH
         )
         return loss
 
@@ -29,14 +29,12 @@ class FocalLoss:
         reduction: str = "mean",
         normalized: bool = False,
         reduced_threshold=None,
-        eps: float = 1e-4,
     ):
         self.gamma = gamma
         self.alpha = alpha
         self.reduction = reduction
         self.normalized = normalized
         self.reduced_threshold = reduced_threshold
-        self.eps = eps
 
     def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         size = target.shape
