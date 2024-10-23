@@ -18,7 +18,7 @@ from PIL import Image
 
 CHECKPOINT = "microsoft/Florence-2-base-ft"
 REVISION = "refs/pr/6"
-DEVICE = torch.device("cuda:0")
+DEVICE = torch.device("cuda:2")
 
 model = AutoModelForCausalLM.from_pretrained(
     CHECKPOINT, trust_remote_code=True, revision=REVISION
@@ -254,35 +254,149 @@ def custom_cross_entropy(logits, labels):
     return loss
 
 
-# def draw_annotations(image, prefix, suffix):
-#     # Разбиваем суффикс на класс и координаты
-#     parts = suffix.split('<loc_')
-#     class_name = parts[0].rstrip('<>')
+SMOOTH = 1e-8
 
-#     height, width, _ = image.shape
+class GlobalFocusLoss:
+    def __init__(self, mode="ML"):
+        self.mode = mode
+        self.global_loss_sum = torch.tensor(0.0, dtype=torch.double)
+        self.global_loss_numel = torch.tensor(0.0, dtype=torch.double)
 
-#     for i in range(1, len(parts), 4):
-#         if i + 3 < len(parts):
-#             try:
-#                 # Преобразование координат обратно к оригинальным размерам
-#                 x1 = int(parts[i].split('>')[0]) * width // 1000
-#                 y1 = int(parts[i + 1].split('>')[0]) * height // 1000
-#                 x2 = int(parts[i + 2].split('>')[0]) * width // 1000
-#                 y2 = int(parts[i + 3].split('>')[0]) * height // 1000
+    def forward(self, input: torch.Tensor, target: torch.Tensor, train_mode=True):
+        # print("input before", input)
+        
+        input = torch.softmax(input, dim=-1)
+        
+        # print("input", input)
+        # print("target", target)
+        
+        target_one_hot = torch.nn.functional.one_hot(target, num_classes=input.size(-1)).float()
 
-#                 # Нарисовать прямоугольник (bounding box)
-#                 cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        # проверить numel
+        
+        if self.mode == "ML":
+            loss_bce = -(
+                target_one_hot * torch.log(input + SMOOTH)
+                + (1 - target_one_hot) * torch.log(1 - input + SMOOTH)
+            )
+        elif self.mode == "MC":
+            loged_target = torch.log(input + SMOOTH)
+            loss_bce = -target_one_hot * loged_target
+            
+            # print("input", input)
+            # print("loged_target", loged_target)
+            # print("loss_bce", loss_bce)
+            
+            # loss_bce = суммировать по измерению токенов вот тут
+            # loss_bce = loss_bce.sum(dim=-1)
 
-#                 # Подписать класс
-#                 cv2.putText(image, class_name, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-#             except (IndexError, ValueError) as e:
-#                 print(f"Error processing bounding box: {e}")
+            
+            # метрики добавить 
+        
+        # if self.mode == "ML":
+        #     loss_bce = -(
+        #         target * torch.log(input + SMOOTH)
+        #         + (1 - target) * torch.log(1 - input + SMOOTH)
+        #     )
 
-#     # Наносим текст префикса и суффикса на изображение
-#     cv2.putText(image, f"Prefix: {prefix}", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
-#     cv2.putText(image, f"Suffix: {class_name}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
+        # elif self.mode == "MC":
+        #     loged_target = torch.log(input + SMOOTH)
+        #     loss_bce = -target * loged_target
 
-#     return image
+        if train_mode:
+            self.global_loss_sum += loss_bce.sum().item()
+            self.global_loss_numel += loss_bce.numel()
+            
+            # Установка предела для global_loss_sum и global_loss_numel
+            max_value = 1e8  # или любое другое значение, которое вы считаете приемлемым
+            self.global_loss_sum = torch.clamp(self.global_loss_sum, max=max_value)
+            self.global_loss_numel = torch.clamp(self.global_loss_numel, max=max_value)
+
+
+            pt = torch.exp(loss_bce - self.global_loss_sum / self.global_loss_numel)
+            loss = loss_bce * pt
+            loss_mean = torch.mean(loss)
+
+        else:
+            loss_mean = torch.mean(loss_bce)
+
+        return loss_mean
+
+    def reset_global_loss(self):
+        """Сбросить накопленные значения потерь."""
+        self.global_loss_sum = torch.tensor(0.0, dtype=torch.double)
+        self.global_loss_numel = torch.tensor(0.0, dtype=torch.double)
+
+
+class BCELoss:
+    @staticmethod
+    def forward(input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        # тут добавил softmax
+        input = torch.softmax(input, dim=-1)
+
+        target_one_hot = torch.nn.functional.one_hot(target.to(torch.int64), num_classes=input.size(-1)).float()
+
+        loss = -target_one_hot * torch.log(input + SMOOTH) - (1 - target_one_hot) * torch.log(
+            1 - input + SMOOTH
+        )
+        return loss
+    
+    
+class FocalLoss:
+    def __init__(
+        self,
+        gamma: float = 2.0,
+        alpha: torch.Tensor = None,
+        reduction: str = "mean",
+        normalized: bool = False,
+        reduced_threshold=None,
+        eps: float = 1e-4,
+    ):
+        self.gamma = gamma
+        self.alpha = alpha
+        self.reduction = reduction
+        self.normalized = normalized
+        self.reduced_threshold = reduced_threshold
+        self.eps = eps
+
+    def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        size = target.shape
+        target = target.type(input.type())
+
+        loss_ce = BCELoss.forward(input, target)
+
+        pt = torch.exp(-loss_ce)
+
+        if self.reduced_threshold is None:
+            focal_term = (1.0 - pt).pow(self.gamma)
+        else:
+            focal_term = ((1.0 - pt) / self.reduced_threshold).pow(self.gamma)
+            focal_term[pt < self.reduced_threshold] = 1
+
+        loss_focal = focal_term * loss_ce
+
+        if self.alpha is not None:
+            for i in range(size[0]):
+                for j in range(size[1]):
+                    weight_matrix = (
+                        (target[i, j]) * self.alpha[0][j]
+                        + (1 - target[i, j]) * self.alpha[1][j]
+                    )
+                    loss_focal[i, j] = loss_focal[i, j] * weight_matrix
+
+        if self.reduction == "mean":
+            loss_focal = loss_focal.mean()
+        elif self.reduction == "sum":
+            loss_focal = loss_focal.sum()
+        elif self.reduction == "batchwise_mean":
+            loss_focal = loss_focal.sum(0)
+
+        return loss_focal
+
+
+
+# criterion = FocalLoss()
+criterion = GlobalFocusLoss(mode="MC") # MC надо было сделать 
 
 
 def train_model(
@@ -305,14 +419,23 @@ def train_model(
     os.makedirs(output_image_dir, exist_ok=True)
     
     for epoch in range(epochs):
-        try:
-            model.train()
-            train_loss = 0
-            for inputs, answers in tqdm(
-                train_loader, desc=f"Training Epoch {epoch + 1}/{epochs}"
-            ):
-                # max_lenght = 1024
+        # try:
+        model.train()
+        train_loss = 0
+        
+        with tqdm(
+            total=len(train_loader),
+            desc=f"Training Epoch {epoch + 1}/{epochs}",
+            unit="batch",
+        ) as pbar:
+        
+            for batch_idx, (inputs, answers) in enumerate(val_loader):
                 
+        # for inputs, answers in tqdm(
+        #     train_loader, desc=f"Training Epoch {epoch + 1}/{epochs}"
+        # ):
+            # max_lenght = 1024
+            
                 input_ids = inputs["input_ids"]
                 pixel_values = inputs["pixel_values"]
                 
@@ -352,40 +475,42 @@ def train_model(
                 # print("outputs shape", outputs["logits"].shape)
                 # print("outputs", outputs["logits"])
                 
-                loss = outputs.loss
+                # loss = outputs.loss
                 ##########################################
                 
                 # тут мой лосс
-                
-                # # print("inputs", inputs)
-                # # print("answers", answers)
-                
-                # logits = outputs.logits  # (batch_size, seq_len, vocab_size)
-                # # print("logits", logits)
-                # # print("logits shape", logits.shape)
-                # # Reshape logits to (batch_size * seq_len, vocab_size)
-                # logits = logits.view(-1, logits.size(-1))  # (batch_size * seq_len, vocab_size)
-                # # print("logits 2", logits)
-                # # print("logits 2 shape", logits.shape)
-                # # Reshape labels to (batch_size * seq_len)
-                # labels = labels.view(-1)  # (batch_size * seq_len)
-                # # print("logits 3", logits)
-                # # print("logits 3 shape", logits.shape)
-                # # Calculate the loss using custom cross entropy
-                
-                # loss = custom_cross_entropy(logits, labels)
-                
-                
-                
-                # вот так еще попробую
+
                 # logits = outputs.logits
+                # # print("logits", logits) тут отрицательные числа
 
                 # # Применяем кастомный лосс
                 # logits = logits.view(-1, logits.size(-1))  # Преобразуем логиты в (batch_size * seq_len, vocab_size)
                 # labels = labels.view(-1)  # Преобразуем метки в (batch_size * seq_len)
                 
-                # loss = custom_cross_entropy(logits, labels)
+                # # BCE кастомный
+                # # loss = custom_cross_entropy(logits, labels)
                 
+                #########################################
+                # focus loss 
+                
+                logits = outputs.logits
+                # print("logits", logits) #тут отрицательные числа
+
+                # Применяем кастомный лосс
+                logits = logits.view(-1, logits.size(-1))  # Преобразуем логиты в (batch_size * seq_len, vocab_size)
+                labels = labels.view(-1)  # Преобразуем метки в (batch_size * seq_len)
+                
+                # print("logits", logits.shape)
+                # print("labels", labels.shape)
+                loss = criterion.forward(logits, labels, train_mode=True)
+                ###########################
+                # focal loss
+                
+                # logits = outputs.logits
+                # logits = logits.view(-1, logits.size(-1))  # Преобразуем логиты в (batch_size * seq_len, vocab_size)
+                # labels = labels.view(-1)  # Преобразуем метки в (batch_size * seq_len)
+                
+                # loss = criterion.forward(logits, labels)
                 ###########################
 
                 loss.backward()
@@ -395,20 +520,30 @@ def train_model(
                 
                 train_loss += loss.item()
                 # n+=1
-                # print("train_loss", train_loss / n)
+                # print("train_loss", train_loss)
                 
+                avg_loss = train_loss / (batch_idx + 1)
+                # Обновляем tqdm с текущим средним лоссом
+                pbar.set_postfix(loss=avg_loss)
+                pbar.update(1)
 
+        avg_train_loss = train_loss / len(train_loader)
+        print(f"Average Training Loss: {avg_train_loss}")
+
+        model.eval()
+        val_loss = 0
+        with torch.no_grad():
+            with tqdm(
+                total=len(val_loader),
+                desc=f"Validation Epoch {epoch + 1}/{epochs}",
+                unit="batch",
+            ) as pbar:
                 
-
-            avg_train_loss = train_loss / len(train_loader)
-            print(f"Average Training Loss: {avg_train_loss}")
-
-            model.eval()
-            val_loss = 0
-            with torch.no_grad():
-                for inputs, answers in tqdm(
-                    val_loader, desc=f"Validation Epoch {epoch + 1}/{epochs}"
-                ):
+                for batch_idx, (inputs, answers) in enumerate(val_loader):
+                
+            # for inputs, answers in tqdm(
+            #     val_loader, desc=f"Validation Epoch {epoch + 1}/{epochs}"
+            # ):
                     input_ids = inputs["input_ids"]
                     pixel_values = inputs["pixel_values"]
                     labels = processor.tokenizer(
@@ -441,50 +576,68 @@ def train_model(
                 
                     # было так
                     ##############################
-                    loss = outputs.loss
+                    # loss = outputs.loss
                     #############################
                     # мой лосс 
-                    
-                    # logits = outputs.logits  # (batch_size, seq_len, vocab_size)
-                    # logits = logits.view(-1, logits.size(-1))  # (batch_size * seq_len, vocab_size)
-                    # labels = labels.view(-1)  # (batch_size * seq_len)
-                    # loss = custom_cross_entropy(logits, labels)
-                    
-                    # вот так попробую
+
                     # logits = outputs.logits
 
                     # # Применяем кастомный лосс
                     # logits = logits.view(-1, logits.size(-1))  # Преобразуем логиты в (batch_size * seq_len, vocab_size)
                     # labels = labels.view(-1)  # Преобразуем метки в (batch_size * seq_len)
                     
-                    # loss = custom_cross_entropy(logits, labels)
+                    # # BCE кастомный
+                    # # loss = custom_cross_entropy(logits, labels)
+                    
+                    ###############################
+                    # focus
+                    
+                    logits = outputs.logits
+                    logits = logits.view(-1, logits.size(-1))  # Преобразуем логиты в (batch_size * seq_len, vocab_size)
+                    labels = labels.view(-1)  # Преобразуем метки в (batch_size * seq_len)
+                    
+                    criterion.reset_global_loss() 
+                    loss = criterion.forward(logits, labels, train_mode=False)
+                    ####################
+                    # focal
+                    
+                    # logits = outputs.logits
+                    # logits = logits.view(-1, logits.size(-1))  # Преобразуем логиты в (batch_size * seq_len, vocab_size)
+                    # labels = labels.view(-1)  # Преобразуем метки в (batch_size * seq_len)
+                    
+                    # loss = criterion.forward(logits, labels)
                     ####################
                     
                     val_loss += loss.item()
+                    
+                    avg_val_loss = val_loss / (batch_idx + 1)
 
-                avg_val_loss = val_loss / len(val_loader)
-                print(f"Average Validation Loss: {avg_val_loss}")
+                    # Обновляем tqdm с текущим средним валидационным лоссом
+                    pbar.set_postfix(loss=avg_val_loss)
+                    pbar.update(1)
+
+            avg_val_loss = val_loss / len(val_loader)
+            print(f"Average Validation Loss: {avg_val_loss}")
 
                 # render_inference_results(peft_model, val_loader.dataset, 6)
 
-        
-            writer.add_scalar("Loss/train", avg_train_loss, epoch)
-            writer.add_scalar("Loss/validation", avg_val_loss, epoch)
+        writer.add_scalar("Loss/train", avg_train_loss, epoch)
+        writer.add_scalar("Loss/validation", avg_val_loss, epoch)
 
-            output_dir = f"./model_checkpoints/{experiment_name}/epoch_{epoch+1}"
-            os.makedirs(output_dir, exist_ok=True)
-            model.save_pretrained(output_dir)
-            processor.save_pretrained(output_dir)
+        output_dir = f"./model_checkpoints/{experiment_name}/epoch_{epoch+1}"
+        os.makedirs(output_dir, exist_ok=True)
+        model.save_pretrained(output_dir)
+        processor.save_pretrained(output_dir)
 
-        except:
-            pass
+        # except:
+        #     pass
         
     writer.close()
 
 
 EPOCHS = 1500
 LR = 5e-6
-experiment_name = "1.8"
+experiment_name = "1.10"
 
 train_model(
     experiment_name,

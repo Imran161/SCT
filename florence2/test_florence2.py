@@ -11,7 +11,7 @@ import torch
 DEVICE = torch.device("cuda:2")
 # DEVICE = torch.device("cpu")
 
-model_checkpoint = "/home/imran-nasyrov/model_checkpoints/1.6/epoch_25"
+model_checkpoint = "/home/imran-nasyrov/model_checkpoints/1.8/epoch_114"
 # model_checkpoint = "/home/imran-nasyrov/model_checkpoints/1.2/epoch_120"
 # model_checkpoint = "microsoft/Florence-2-base-ft"
 
@@ -72,7 +72,7 @@ image = Image.open(local_image_path)
 # task_prompt = '<CAPTION_TO_PHRASE_GROUNDING>'
 # task_prompt = "<REFERRING_EXPRESSION_SEGMENTATION>" # {'CAPTION': '\nCT scan of the head and neck of a man with a large tumor in the middle of his head<loc_153><loc_113><loc_912><loc_998>\n'}
 task_prompt = "<CAPTION_TO_PHRASE_GROUNDING>"
-text_input = "Pneumonia.Pathologies."
+text_input = "hydrothorax"
 results, modified_image = run_example(task_prompt, text_input=text_input)
 print(results)
 
