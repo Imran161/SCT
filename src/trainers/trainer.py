@@ -27,6 +27,9 @@ from ..utils.utils import (
     save_best_metrics_to_csv,
 )
 
+мне нужно будет потом сделать segmentation trainer, regression, detection, diffusion, gan,
+multimodal transformer(florence-2), multioutput(вход обычный, а выход любой может быть)
+
 set_seed(64)
 
 
