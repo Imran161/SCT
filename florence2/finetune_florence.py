@@ -305,20 +305,30 @@ class GlobalFocusLoss:
 
         if train_mode:
             self.global_loss_sum += loss_bce.sum().item()
-            self.global_loss_numel += loss_bce.numel()
+            
+            if self.mode == "ML":
+                self.global_loss_numel += loss_bce.numel()
+            else:
+                self.global_loss_numel += target.numel()
             
             # Установка предела для global_loss_sum и global_loss_numel
             max_value = 1e8  # или любое другое значение, которое вы считаете приемлемым
-            self.global_loss_sum = torch.clamp(self.global_loss_sum, max=max_value)
-            self.global_loss_numel = torch.clamp(self.global_loss_numel, max=max_value)
+            # self.global_loss_sum = torch.clamp(self.global_loss_sum, max=max_value)
+            # self.global_loss_numel = torch.clamp(self.global_loss_numel, max=max_value)
 
-
+            
             pt = torch.exp(loss_bce - self.global_loss_sum / self.global_loss_numel)
             loss = loss_bce * pt
-            loss_mean = torch.mean(loss)
-
+            if self.mode == "ML":
+                loss_mean = torch.mean(loss)
+            else:
+                loss_mean = loss.sum() / target.numel()
+            
         else:
-            loss_mean = torch.mean(loss_bce)
+            if self.mode == "ML":
+                loss_mean = torch.mean(loss_bce)
+            else:
+                loss_mean = loss_bce.sum() / target.numel()
 
         return loss_mean
 
@@ -330,10 +340,14 @@ class GlobalFocusLoss:
 
 class BCELoss:
     @staticmethod
-    def forward(input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    def forward(input: torch.Tensor, target: torch.Tensor, mode: str) -> torch.Tensor:
+        
+        if mode == "MC":
         # тут добавил softmax
-        input = torch.softmax(input, dim=-1)
-
+            input = torch.softmax(input, dim=-1)
+        else:
+            input = torch.sigmoid(input) #  точно так  ? #########################################################
+        
         target_one_hot = torch.nn.functional.one_hot(target.to(torch.int64), num_classes=input.size(-1)).float()
 
         loss = -target_one_hot * torch.log(input + SMOOTH) - (1 - target_one_hot) * torch.log(
@@ -351,6 +365,7 @@ class FocalLoss:
         normalized: bool = False,
         reduced_threshold=None,
         eps: float = 1e-4,
+        mode = "MC"
     ):
         self.gamma = gamma
         self.alpha = alpha
@@ -358,12 +373,13 @@ class FocalLoss:
         self.normalized = normalized
         self.reduced_threshold = reduced_threshold
         self.eps = eps
+        self.mode = mode
 
     def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         size = target.shape
         target = target.type(input.type())
 
-        loss_ce = BCELoss.forward(input, target)
+        loss_ce = BCELoss.forward(input, target, self.mode)
 
         pt = torch.exp(-loss_ce)
 
@@ -383,19 +399,17 @@ class FocalLoss:
                         + (1 - target[i, j]) * self.alpha[1][j]
                     )
                     loss_focal[i, j] = loss_focal[i, j] * weight_matrix
-
-        if self.reduction == "mean":
+        
+        if self.mode == "MC":
+            loss_focal = loss_focal.sum() / target.numel()
+        else:
             loss_focal = loss_focal.mean()
-        elif self.reduction == "sum":
-            loss_focal = loss_focal.sum()
-        elif self.reduction == "batchwise_mean":
-            loss_focal = loss_focal.sum(0)
 
         return loss_focal
 
 
 
-# criterion = FocalLoss()
+# criterion = FocalLoss(mode="MC")
 criterion = GlobalFocusLoss(mode="MC") # MC надо было сделать 
 
 
@@ -429,7 +443,7 @@ def train_model(
             unit="batch",
         ) as pbar:
         
-            for batch_idx, (inputs, answers) in enumerate(val_loader):
+            for batch_idx, (inputs, answers) in enumerate(train_loader):
                 
         # for inputs, answers in tqdm(
         #     train_loader, desc=f"Training Epoch {epoch + 1}/{epochs}"
@@ -458,7 +472,7 @@ def train_model(
                 # print("outputs", outputs)
                 # break
                 
-
+    
                 # Декодируем labels и logits обратно в текст для вывода
                 decoded_labels = processor.batch_decode(labels, skip_special_tokens=False)
                 decoded_outputs = processor.batch_decode(
