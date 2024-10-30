@@ -20,10 +20,10 @@ from torchvision import transforms
 
 
 # Устройство для работы с моделью
-DEVICE = torch.device("cuda:2")
+DEVICE = torch.device("cuda:1")
 
 # Загрузка модели и процессора
-model_checkpoint = "/home/imran-nasyrov/model_checkpoints/1.9/epoch_1"
+model_checkpoint = "/home/imran-nasyrov/model_checkpoints/1.11/epoch_17"
 model = AutoModelForCausalLM.from_pretrained(model_checkpoint, trust_remote_code=True).eval().to(DEVICE)
 processor = AutoProcessor.from_pretrained(model_checkpoint, trust_remote_code=True)
 
@@ -169,8 +169,10 @@ def run_example(task_prompt, image, text_input=None, save_model=False, save_inpu
     inputs = processor(text=prompt, images=image, return_tensors="pt")
     input_ids = inputs["input_ids"].to(DEVICE)
     pixel_values = inputs["pixel_values"].to(DEVICE)
-    print("pixel_values shape", pixel_values.shape)
-    print("pixel_values", pixel_values)
+    # print("pixel_values shape", pixel_values.shape)
+    # print("pixel_values", pixel_values)
+    print("input_ids shape", input_ids.shape)
+    print("input_ids", input_ids)
 
     # Получаем start_token_id для декодера
     # start_token_id = model.config.decoder_start_token_id
@@ -181,7 +183,7 @@ def run_example(task_prompt, image, text_input=None, save_model=False, save_inpu
     # Экспорт модели
     if save_model:
         onnx_model = ONNXModelWrapper(model)
-        onnx_save_path = "florence2.onnx"
+        onnx_save_path = "florence2_epoch_136.onnx"
         torch.onnx.export(
             onnx_model,
             (input_ids, pixel_values, decoder_input_ids),
@@ -250,7 +252,7 @@ def run_example(task_prompt, image, text_input=None, save_model=False, save_inpu
 
 
 
-def my_run_example(task_prompt, image, text_input=None, save_model=True, save_inputs=False):
+def my_run_example(task_prompt, image, text_input=None, save_model=False, save_inputs=False, image_tensor=None):
     if text_input is None:
         prompt = task_prompt
     else:
@@ -460,13 +462,13 @@ def process_jsonl_data(jsonl_data):
         
         # Пример использования
         image_tensor = preprocess_image(image_path)
-        print(image_tensor.shape)  # Вывод размера тензора, например torch.Size([3, 224, 224])
-        print("image_tensor", image_tensor)
+        # print(image_tensor.shape)  # torch.Size([1, 3, 768, 768])
+        # print("image_tensor", image_tensor)
         # image_tensor для проверки моей предобработки
 
         # Запускаем модель
         task_prompt = "<CAPTION_TO_PHRASE_GROUNDING>"
-        results, modified_image = run_example(task_prompt, image, text_input=text_input, image_tensor=image_tensor)
+        results, modified_image = my_run_example(task_prompt, image, text_input=text_input, image_tensor=image_tensor)
 
         # Сохраняем результат
         save_image_name = f"{os.path.splitext(image_name)[0]}_{text_input}.jpg"

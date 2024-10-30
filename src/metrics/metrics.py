@@ -4,8 +4,8 @@ import torch.nn.functional as F
 from sklearn.metrics import auc, roc_curve
 
 
-тут конфиг дикт тоже на вход сделать
-потом класс этот разделить надо на несколько
+# тут конфиг дикт тоже на вход сделать
+# потом класс этот разделить надо на несколько
 
 
 class DetectionMetrics:

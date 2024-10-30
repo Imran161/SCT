@@ -18,7 +18,7 @@ from torch.utils.tensorboard import SummaryWriter
 from sklearn.exceptions import UndefinedMetricWarning
 import segmentation_models_pytorch as smp
 
-from ..losses import WeakCombinedLoss, FocalLoss  # Подключи кастомные функции лосса
+from ..losses.losses_cls import WeakCombinedLoss, FocalLoss  # Подключи кастомные функции лосса
 from ..datamanager.coco_dataloaders import SINUSITE_COCODataLoader
 from ..metrics.metrics import DetectionMetrics
 
@@ -188,11 +188,11 @@ class ExperimentSetup:
 
 class BaseTrainer(ABC):
     def __init__(self, dataloaders, config):
-        self.model = config["model"]
         self.train_loader = dataloaders["train"]
         self.val_loader = dataloaders["val"]
         self.config = config
         self.device = config["device"]
+        self.model = config["model"].to(self.device)
         self.experiment = ExperimentSetup(config)
 
     @abstractmethod
@@ -219,14 +219,18 @@ class BaseTrainer(ABC):
 
 class SegmentationTrainer(BaseTrainer):
     def __init__(self, dataloaders, config):
-        super().__init__(config["model"], dataloaders, config)
+        super().__init__(dataloaders, config)
         # self.optimizer = torch.optim.Adam(model.parameters(), lr=config["lr"])
         # надо тут заменить потом везде config["model"]
         self.optimizer = config["optimizer"](
             config["model"].parameters(), lr=config["lr"]
         )
+        
+        # self.device = config["device"]
+        print("self.device", self.device)
+        
         # это тоже менять надо, лосс должен в конфиге задаваться
-        self.criterion = WeakCombinedLoss(config["train_loss_parameters"])
+        self.criterion = WeakCombinedLoss(*config["train_loss_parameters"])
         num_classes = 3
 
         self.writer = SummaryWriter(
@@ -262,7 +266,7 @@ class SegmentationTrainer(BaseTrainer):
                 predictions = self.model(images)
                 # тут надо подумать как лучше сделать
                 predictions = torch.sigmoid(predictions)
-                loss = self.criterion(predictions, masks)
+                loss = self.criterion.forward(predictions, masks)
                 loss.backward()
                 self.optimizer.step()
 
@@ -320,7 +324,7 @@ class SegmentationTrainer(BaseTrainer):
                     predictions = self.model(images)
                     # тут надо подумать как лучше сделать
                     predictions = torch.sigmoid(predictions)
-                    loss = self.criterion(predictions, masks)
+                    loss = self.criterion.forward(predictions, masks)
 
                     self.metrics_calculator_val.update_counter(
                         masks,
@@ -462,7 +466,7 @@ class TrainerFactory:
 
 
 if __name__ == "__main__":
-    batch_size = 24
+    batch_size = 6
     num_classes = 3
 
     params = {
@@ -507,13 +511,14 @@ if __name__ == "__main__":
 
     config = {
         "task": "segmentation",
-        "model_name": model,
+        "model": model,
         "epochs": 120,
+        "train_loss_parameters" : (None, None),
         "optimizer": torch.optim.Adam,
         "lr": 3e-4,
         "exp_name": "kidneys_new_code_1.10",
         "runs_path": "home/imran-nasyrov/runs_kidneys",
-        "device": "cuda:0",
+        "device": device,
     }
 
     trainer = TrainerFactory.create_trainer(
