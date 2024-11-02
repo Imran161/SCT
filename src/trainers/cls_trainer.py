@@ -18,7 +18,10 @@ from torch.utils.tensorboard import SummaryWriter
 from sklearn.exceptions import UndefinedMetricWarning
 import segmentation_models_pytorch as smp
 
-from ..losses.losses_cls import WeakCombinedLoss, FocalLoss  # Подключи кастомные функции лосса
+from ..losses.losses_cls import (
+    WeakCombinedLoss,
+    FocalLoss,
+)  # Подключи кастомные функции лосса
 from ..datamanager.coco_dataloaders import SINUSITE_COCODataLoader
 from ..metrics.metrics import DetectionMetrics
 
@@ -28,140 +31,140 @@ from ..datamanager.coco_classes import (
 )
 #######################################################
 # хотел так сделать но сделаю как ниже
-#
-#
-# class ExperimentSetup:
-#     def __init__(self, config):
-#         self.config = config
-#         self.exp_name = self.create_experiment_dir()
-#
-#     def create_experiment_dir(self):
-#         timestamp = time.strftime("%Y-%m-%d__%H_%M_%S")
-#         exp_name = f"{timestamp}_{self.config['exp_name']}"
-#         os.makedirs(f"{self.config['runs_path']}/{exp_name}/models", exist_ok=True)
-#         return exp_name
-#
-#
-# class SegTrainer:
-#     def __init__(self, net, train_dataloader, val_dataloader, config):
-#         self.net = net
-#         self.train_dataloader = train_dataloader
-#         self.val_dataloader = val_dataloader
-#         self.config = config
-#         self.experiment = ExperimentSetup(config)
-#
-#         # Переменные и функции
-#         self.vars = {
-#             "phase": None,
-#             "epoch": 0,
-#             "actual_epoch_loss": 0.0,
-#             "actual_num_of_step": 0.0,
-#             "best_epoch_loss": float("inf"),
-#             "counter": config["early_stop"],
-#         }
-#
-#         self.loss_functions = {
-#             "train_loss": WeakCombinedLoss(config["train_loss_parameters"]),
-#             "val_loss": WeakCombinedLoss(config["val_loss_parameters"]),
-#         }
-#         self.metrics_functions = {
-#             "train_metrics": MetricsCalculator(config["train_metrics_parameters"]),
-#             "val_metrics": MetricsCalculator(config["val_metrics_parameters"]),
-#         }
-#         self.transforms = DataTransforms(config["transform_parameters"])
-#
-#     def load_best_model(self):
-#         checkpoint_path = (
-#             f"{self.config['runs_path']}/{self.experiment.exp_name}/models/best.pth"
-#         )
-#         self.net.load_state_dict(
-#             torch.load(checkpoint_path, map_location=self.config["device"])
-#         )
-#         self.net.to(self.config["device"])
-#
-#     def reset_epoch_counters(self):
-#         self.vars["actual_epoch_loss"] = 0.0
-#         self.vars["actual_num_of_step"] = 0.0
-#
-#     def train_step(self, images, true_masks):
-#         self.vars["masks_pred"] = self.net(images)
-#         loss = self.loss_functions["train_loss"](self.vars["masks_pred"], true_masks)
-#         loss.backward()
-#         self.optimizer.step()
-#         return loss
-#
-#     def val_step(self, images, true_masks):
-#         with torch.no_grad():
-#             self.vars["masks_pred"] = self.net(images)
-#             loss = self.loss_functions["val_loss"](self.vars["masks_pred"], true_masks)
-#         return loss
-#
-#     def start_epoch(self, data_loader, phase="train"):
-#         self.vars["phase"] = phase
-#         self.net.train() if phase == "train" else self.net.eval()
-#         self.reset_epoch_counters()
-#
-#         with tqdm(
-#             total=len(data_loader),
-#             desc=f'Epoch {self.vars["epoch"] + 1}/{self.config["epochs"]}',
-#             unit="img",
-#         ) as pbar:
-#             for batch in data_loader:
-#                 images, true_masks = batch["images"], batch["masks"]
-#                 images, true_masks = (
-#                     images.to(self.config["device"]),
-#                     true_masks.to(self.config["device"]),
-#                 )
-#                 loss = (
-#                     self.train_step(images, true_masks)
-#                     if phase == "train"
-#                     else self.val_step(images, true_masks)
-#                 )
-#
-#                 self.vars["actual_loss"] = loss.item()
-#                 self.vars["actual_epoch_loss"] += loss.item()
-#                 self.vars["actual_num_of_step"] += 1
-#                 pbar.set_postfix(**{"loss (batch)": self.vars["actual_loss"]})
-#                 pbar.update(1)
-#
-#     def train(self):
-#         for epoch in range(self.config["epochs"]):
-#             self.vars["epoch"] = epoch
-#             self.start_epoch(self.train_dataloader, phase="train")
-#             self.start_epoch(self.val_dataloader, phase="val")
-#             self.check_early_stopping()
-#
-#     def check_early_stopping(self):
-#         if self.vars["actual_epoch_loss"] < self.vars["best_epoch_loss"]:
-#             self.vars["best_epoch_loss"] = self.vars["actual_epoch_loss"]
-#             self.save_model("best")
-#
-#     def save_model(self, name):
-#         model_path = (
-#             f"{self.config['runs_path']}/{self.experiment.exp_name}/models/{name}.pth"
-#         )
-#         torch.save(self.net.state_dict(), model_path)
-#
-#
-# config = {
-#     "exp_name": "example_experiment",
-#     "runs_path": "./experiments",
-#     "epochs": 10,
-#     "early_stop": 3,
-#     "train_loss_parameters": {"param1": 1, "param2": 0.5},
-#     "val_loss_parameters": {"param1": 1, "param2": 0.5},
-#     "train_metrics_parameters": {"metric1": "accuracy"},
-#     "val_metrics_parameters": {"metric1": "accuracy"},
-#     "transform_parameters": {"resize": 256, "normalize": True},
-#     "device": "cuda" if torch.cuda.is_available() else "cpu",
-# }
-#
-# trainer = Trainer(
-#     net=model, train_dataloader=train_loader, val_dataloader=val_loader, config=config
-# )
-# trainer.train()
-#
-#######################################################
+
+
+class ExperimentSetup:
+    def __init__(self, config):
+        self.config = config
+        self.exp_name = self.create_experiment_dir()
+
+    def create_experiment_dir(self):
+        timestamp = time.strftime("%Y-%m-%d__%H_%M_%S")
+        exp_name = f"{timestamp}_{self.config['exp_name']}"
+        os.makedirs(f"{self.config['runs_path']}/{exp_name}/models", exist_ok=True)
+        return exp_name
+
+
+class SegTrainer:
+    def __init__(self, net, train_dataloader, val_dataloader, config):
+        self.net = net
+        self.train_dataloader = train_dataloader
+        self.val_dataloader = val_dataloader
+        self.config = config
+        self.experiment = ExperimentSetup(config)
+
+        # Переменные и функции
+        self.vars = {
+            "phase": None,
+            "epoch": 0,
+            "actual_epoch_loss": 0.0,
+            "actual_num_of_step": 0.0,
+            "best_epoch_loss": float("inf"),
+            "counter": config["early_stop"],
+        }
+
+        self.loss_functions = {
+            "train_loss": WeakCombinedLoss(config["train_loss_parameters"]),
+            "val_loss": WeakCombinedLoss(config["val_loss_parameters"]),
+        }
+        self.metrics_functions = {
+            "train_metrics": MetricsCalculator(config["train_metrics_parameters"]),
+            "val_metrics": MetricsCalculator(config["val_metrics_parameters"]),
+        }
+        self.transforms = DataTransforms(config["transform_parameters"])
+
+    def load_best_model(self):
+        checkpoint_path = (
+            f"{self.config['runs_path']}/{self.experiment.exp_name}/models/best.pth"
+        )
+        self.net.load_state_dict(
+            torch.load(checkpoint_path, map_location=self.config["device"])
+        )
+        self.net.to(self.config["device"])
+
+    def reset_epoch_counters(self):
+        self.vars["actual_epoch_loss"] = 0.0
+        self.vars["actual_num_of_step"] = 0.0
+
+    def train_step(self, images, true_masks):
+        self.vars["masks_pred"] = self.net(images)
+        loss = self.loss_functions["train_loss"](self.vars["masks_pred"], true_masks)
+        loss.backward()
+        self.optimizer.step()
+        return loss
+
+    def val_step(self, images, true_masks):
+        with torch.no_grad():
+            self.vars["masks_pred"] = self.net(images)
+            loss = self.loss_functions["val_loss"](self.vars["masks_pred"], true_masks)
+        return loss
+
+    def start_epoch(self, data_loader, phase="train"):
+        self.vars["phase"] = phase
+        self.net.train() if phase == "train" else self.net.eval()
+        self.reset_epoch_counters()
+
+        with tqdm(
+            total=len(data_loader),
+            desc=f'Epoch {self.vars["epoch"] + 1}/{self.config["epochs"]}',
+            unit="img",
+        ) as pbar:
+            for batch in data_loader:
+                images, true_masks = batch["images"], batch["masks"]
+                images, true_masks = (
+                    images.to(self.config["device"]),
+                    true_masks.to(self.config["device"]),
+                )
+                loss = (
+                    self.train_step(images, true_masks)
+                    if phase == "train"
+                    else self.val_step(images, true_masks)
+                )
+
+                self.vars["actual_loss"] = loss.item()
+                self.vars["actual_epoch_loss"] += loss.item()
+                self.vars["actual_num_of_step"] += 1
+                pbar.set_postfix(**{"loss (batch)": self.vars["actual_loss"]})
+                pbar.update(1)
+
+    def train(self):
+        for epoch in range(self.config["epochs"]):
+            self.vars["epoch"] = epoch
+            self.start_epoch(self.train_dataloader, phase="train")
+            self.start_epoch(self.val_dataloader, phase="val")
+            self.check_early_stopping()
+
+    def check_early_stopping(self):
+        if self.vars["actual_epoch_loss"] < self.vars["best_epoch_loss"]:
+            self.vars["best_epoch_loss"] = self.vars["actual_epoch_loss"]
+            self.save_model("best")
+
+    def save_model(self, name):
+        model_path = (
+            f"{self.config['runs_path']}/{self.experiment.exp_name}/models/{name}.pth"
+        )
+        torch.save(self.net.state_dict(), model_path)
+
+
+config = {
+    "exp_name": "example_experiment",
+    "runs_path": "./experiments",
+    "epochs": 10,
+    "early_stop": 3,
+    "train_loss_parameters": {"param1": 1, "param2": 0.5},
+    "val_loss_parameters": {"param1": 1, "param2": 0.5},
+    "train_metrics_parameters": {"metric1": "accuracy"},
+    "val_metrics_parameters": {"metric1": "accuracy"},
+    "transform_parameters": {"resize": 256, "normalize": True},
+    "device": "cuda" if torch.cuda.is_available() else "cpu",
+}
+
+trainer = Trainer(
+    net=model, train_dataloader=train_loader, val_dataloader=val_loader, config=config
+)
+trainer.train()
+
+######################################################
 
 ##################################################
 ##################################################
@@ -225,10 +228,10 @@ class SegmentationTrainer(BaseTrainer):
         self.optimizer = config["optimizer"](
             config["model"].parameters(), lr=config["lr"]
         )
-        
+
         # self.device = config["device"]
         print("self.device", self.device)
-        
+
         # это тоже менять надо, лосс должен в конфиге задаваться
         self.criterion = WeakCombinedLoss(*config["train_loss_parameters"])
         num_classes = 3
@@ -513,7 +516,7 @@ if __name__ == "__main__":
         "task": "segmentation",
         "model": model,
         "epochs": 120,
-        "train_loss_parameters" : (None, None),
+        "train_loss_parameters": (None, None),
         "optimizer": torch.optim.Adam,
         "lr": 3e-4,
         "exp_name": "kidneys_new_code_1.10",
