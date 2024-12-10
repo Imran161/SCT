@@ -13,6 +13,127 @@ from .coco_classes import (
 from .json_handler import JsonHandler
 
 
+class KIDNEYS_COCODataLoader:
+    def __init__(self, json_params):
+        self.json_params = json_params
+        self.list_out_classes = None
+
+    @staticmethod
+    def kidneys_get_target_directories(base_dir, num_series):
+        target_dirs = []
+        val_target_dirs = []
+
+        # Получаем серию папок (P_1, P_2 и т.д.) и ограничиваем их числом num_series
+        series_folders = sorted(
+            [
+                f for f in os.listdir(base_dir)
+                if os.path.isdir(os.path.join(base_dir, f)) and f.startswith("P_")
+            ]
+        )
+        selected_series_folders = series_folders[:num_series]
+        print("selected_series_folders", selected_series_folders)
+
+        # Собираем целевые директории для выбранных серий папок
+        for series_folder in selected_series_folders:
+            series_path = os.path.join(base_dir, series_folder)
+            for root, dirs, _ in os.walk(series_path):
+                if any(view in root for view in ['axial', 'frontal', 'sagital']):
+                    images_path = os.path.join(root, 'images')
+                    annotations_path = os.path.join(root, 'annotations')
+                    if os.path.isdir(images_path) and os.path.isdir(annotations_path):
+                        target_dirs.append(root)
+
+        val_dir = os.path.join(base_dir, 'val')
+        if os.path.isdir(val_dir):
+            for root, dirs, _ in os.walk(val_dir):
+                if any(view in root for view in ['axial', 'frontal', 'sagital']):
+                    images_path = os.path.join(root, 'images')
+                    annotations_path = os.path.join(root, 'annotations')
+                    if os.path.isdir(images_path) and os.path.isdir(annotations_path):
+                        val_target_dirs.append(root)
+
+        return target_dirs, val_target_dirs
+
+    def class_instance(self, path, split_category):
+        self.json_params["json_file_path"] = path
+
+        sct_coco = JsonHandler(self.json_params, split_category)
+        self.list_out_classes = sct_coco.list_out_classes
+        return sct_coco
+
+    def make_dataloaders(self, batch_size, num_series=5):
+        target_dirs, val_target_dirs = self.kidneys_get_target_directories(self.json_params["json_file_path"], num_series)
+
+        all_train_data = []
+        all_val_data = []
+        count = 0
+
+        for subdir in target_dirs:
+            try:
+                print("Processing train folder:", subdir)
+                sct_coco = self.class_instance(subdir, "train")
+                
+                if count == 0:
+                    total_train = np.copy(sct_coco.total_train)
+                    pixel_total_train = np.copy(sct_coco.pixel_total_train)
+                else:
+                    print("sct_coco._total_train", sct_coco.total_train)
+                    total_train += sct_coco.total_train
+                    pixel_total_train += sct_coco.pixel_total_train
+                
+                train_dataset = Subset(sct_coco, sct_coco.train_list)
+                all_train_data.append(train_dataset)
+                
+                count += 1
+            except Exception as e:
+                print(f"Error processing train folder {subdir}: {e}")
+
+        # Обрабатываем валидационные папки
+        for subdir in val_target_dirs:
+            try:
+                print("Processing val folder:", subdir)
+                sct_coco = self.class_instance(subdir, "val")
+                
+                val_dataset = Subset(sct_coco, sct_coco.val_list)
+                all_val_data.append(val_dataset)
+                
+                count += 1
+            except Exception as e:
+                print(f"Error processing val folder {subdir}: {e}")
+
+        concat_train_data = ConcatDataset(all_train_data)
+        concat_val_data = ConcatDataset(all_val_data)
+
+        train_loader = DataLoader(
+            concat_train_data,
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=4,
+            collate_fn=self.custom_collate_fn,
+        )
+        val_loader = DataLoader(
+            concat_val_data,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=4,
+            collate_fn=self.custom_collate_fn,
+        )
+
+        return (
+            train_loader,
+            val_loader,
+            total_train,
+            pixel_total_train,
+            self.list_out_classes,
+        )
+        
+    @staticmethod
+    def custom_collate_fn(batch):
+        images = torch.stack([item["images"] for item in batch])
+        masks = torch.stack([item["masks"] for item in batch])
+        return {"images": images, "masks": masks}
+
+
 class SINUSITE_COCODataLoader:
     def __init__(self, json_params):
         self.json_params = json_params

@@ -23,14 +23,14 @@ from torchvision import transforms
 DEVICE = torch.device("cuda:1")
 
 # Загрузка модели и процессора
-model_checkpoint = "/home/imran-nasyrov/model_checkpoints/1.11/epoch_17"
+model_checkpoint = "/home/imran-nasyrov/model_checkpoints/1.11/epoch_31"
 model = AutoModelForCausalLM.from_pretrained(model_checkpoint, trust_remote_code=True).eval().to(DEVICE)
 processor = AutoProcessor.from_pretrained(model_checkpoint, trust_remote_code=True)
 
 # Пути к файлам
 jsonl_path = "/home/imran-nasyrov/cvat_sinonyms/task_task_13_oct_23_pat_fut_1c-2024_02_26_15_44_35-coco 1.0.zip/annotations.jsonl"
 images_folder = "/home/imran-nasyrov/cvat_sinonyms/task_task_13_oct_23_pat_fut_1c-2024_02_26_15_44_35-coco 1.0.zip/images"
-save_folder = "/home/imran-nasyrov/test_infer_florence"  # Папка для сохранения изображений
+save_folder = "/home/imran-nasyrov/test_infer_florence_1_11"  # Папка для сохранения изображений
 
 # Убедимся, что папка для сохранения существует
 os.makedirs(save_folder, exist_ok=True)
