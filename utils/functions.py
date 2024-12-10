@@ -3,9 +3,6 @@ import os
 
 
 def standart_weight_saving_manager(variables, model, config):
-    """
-    Сохраняет текущую модель и модель с лучшей ошибкой на валидации.
-    """
     save_dir = os.path.join(config["model_save_dir"], "models")
     os.makedirs(save_dir, exist_ok=True)
 
