@@ -5,12 +5,11 @@ from typing import Any, List, Optional, Tuple
 import numpy as np
 from torch.utils.data import DataLoader
 
-from ..losses.losses import SMOOTH
-from ..losses.losses import (
-    bce,
-    global_focus_loss,
-    strong_combined_loss,
-    weak_combined_loss,
+from ..losses.losses_cls import SMOOTH
+from ..losses.losses_cls import (
+    BCEMeanLoss,
+    StrongCombinedLoss,
+    WeakCombinedLoss,
 )
 
 
@@ -108,13 +107,13 @@ class ExperimentSetup:
         # experiment_name = f"{power}_loss_class_weights_{self.use_cls}_pixel_weights_{self.use_pixel}_pixel_opt_{self.use_pixel_opt}"
 
         if "weak_loss" in experiment_name:
-            criterion = weak_combined_loss
+            criterion = WeakCombinedLoss
         elif "strong_loss" in experiment_name:
-            criterion = strong_combined_loss
-        elif "focus_loss" in experiment_name:
-            criterion = global_focus_loss
-        elif "bce_loss" in experiment_name:
-            criterion = bce
+            criterion = StrongCombinedLoss
+        # elif "focus_loss" in experiment_name:
+        #     criterion = global_focus_loss
+        # elif "bce_loss" in experiment_name:
+        #     criterion = bce
         else:
             raise ValueError("Invalid experiment name")
 

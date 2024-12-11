@@ -2,6 +2,8 @@ import torch
 import segmentation_models_pytorch as smp
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
+import warnings
+from sklearn.exceptions import UndefinedMetricWarning
 from tqdm import tqdm
 from utils.functions import (
     standart_logging_manager,
@@ -32,6 +34,8 @@ class AbstractTrainer:
         self.variables = {
             "device": self.config.get("device", None),
             "num_classes": self.config.get("num_classes", 3),
+            "alpha_no_fon": self.config.get("alpha_no_fon", None),
+            "weight_opt": self.config.get("weight_opt", None),
             "current_epoch": 0,
             "current_phase": None,
             "current_loss": 0,
@@ -83,6 +87,7 @@ class AbstractTrainer:
 
                 for batch in tqdm(dataloader, desc=f"Epoch {self.variables['current_epoch']} Phase {phase}"):
                     self.process_batch(batch)
+                    
 
                 average_phase_loss = self.variables["phase_losses"][phase] / len(dataloader)
                 print(f"{phase.capitalize()} Average Loss: {average_phase_loss}")
@@ -90,6 +95,10 @@ class AbstractTrainer:
                 metrics = self.compute_epoch_metrics(phase)
                 self.functions["log_metrics"](writer, phase, metrics, self.variables["current_epoch"])
                 self.functions["weight_saving_manager"](self.variables, self.functions["model"], self.config)
+                
+                if self.variables["weight_opt"]:
+                    alpha_no_fon = weight_opt.opt_pixel_weight(metrics["train_metrics"], self.variables["alpha_no_fon"])
+
 
             self.variables["current_epoch"] += 1
 

@@ -68,7 +68,7 @@ class KIDNEYS_COCODataLoader:
         all_val_data = []
         count = 0
 
-        for subdir in target_dirs:
+        for subdir in target_dirs[:100]:
             try:
                 print("Processing train folder:", subdir)
                 sct_coco = self.class_instance(subdir, "train")
