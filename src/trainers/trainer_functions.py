@@ -1,14 +1,33 @@
 import torch
-import torch.nn.functional as F
-from torch.utils.tensorboard import SummaryWriter
+import os
 
-from ..losses.losses_cls import (
-    FocalLoss,
-    WeakCombinedLoss,
-)  # Подключи кастомные функции лосса
-from ..metrics.metrics import DetectionMetrics
+from ..datamanager.coco_classes import (
+    kidneys_base_classes,
+    kidneys_pat_out_classes,
+    kidneys_segment_out_classes
+)
 
-writer = SummaryWriter()
+class_names_dict = {
+    class_info["id"]: class_info["name"]
+    for class_info in kidneys_segment_out_classes
+}
+print("class_names_dict", class_names_dict)
+
+classes = list(class_names_dict.keys())
+
+def standart_weight_saving_manager(variables, model, config):
+    save_dir = os.path.join(config["model_save_dir"], "models", f"{config['experiment_name']}")
+    os.makedirs(save_dir, exist_ok=True)
+
+    current_model_path = os.path.join(save_dir, f"model_epoch_{variables['current_epoch']}.pth")
+    torch.save(model.state_dict(), current_model_path)
+    print(f"Сохранена текущая модель в {current_model_path} на эпохе {variables['current_epoch']}")
+
+    if "best_val_loss" not in variables or variables["phase_losses"]["val"] < variables["best_val_loss"]:
+        variables["best_val_loss"] = variables["phase_losses"]["val"]
+        best_model_path = os.path.join(save_dir, "best_model.pth")
+        torch.save(model.state_dict(), best_model_path)
+        print(f"Сохранена лучшая модель с ошибкой на валидации: {variables['best_val_loss']}")
 
 
 def standart_model_configurate(model, variables):
@@ -16,54 +35,35 @@ def standart_model_configurate(model, variables):
         model.train()
     elif variables["current_phase"] == "val":
         model.eval()
+    else:
+        raise ValueError(f'Фаза "{variables["current_phase"]}" не поддерживается')
+    
+    
+def no_grad_for_validation(func):
+    def wrapper(self, *args, **kwargs):
+        if self.variables["current_phase"] == "val":
+            with torch.no_grad():
+                return func(self, *args, **kwargs)
+        return func(self, *args, **kwargs)
+    return wrapper
 
 
-def apply_activation(outputs, config):
-    activation_fn = config.get("activation", None)
-    if activation_fn == "sigmoid":
-        return torch.sigmoid(outputs)
-    elif activation_fn == "softmax":
-        return F.softmax(outputs)
-    return outputs
+def standart_logging_manager(config, experiment_name):
+    from torch.utils.tensorboard import SummaryWriter
+    log_dir = os.path.join(config["model_save_dir"], f"{experiment_name}_logs")
+    os.makedirs(log_dir, exist_ok=True)
+    return SummaryWriter(log_dir=log_dir)
 
 
-def standart_batch_function(batch):
-    return {"images": batch["images"], "masks": batch["mask"][:, 1:, :, :]}
+def log_metrics(writer, phase, metrics, epoch, losses):
+    writer.add_scalar(f"{phase}/Loss", losses, epoch)
 
-
-def standart_logging_manager(variables, functions):
-    """
-    Логирование метрик в TensorBoard.
-    Ожидает, что в `functions` определена функция `compute_metrics` для подсчета метрик.
-    """
-    if functions["metrick"]:
-        phase = variables["current_phase"]
-        epoch = variables["current_epoch"]
-
-        metrics = functions["metrick"].compute_metrics()
-        for metric_name, value in metrics.items():
-            writer.add_scalar(f"{phase}/{metric_name}", value, epoch)
-
-        functions["metrick"].reset()
-
-
-def standart_weight_saving_manager(variables, model, config):
-    """
-    Сохранение весов модели, если текущая ошибка ниже наилучшей.
-    Ожидает, что `variables` содержит значения 'epoch_loss' и 'Best loss',
-    а `config` - путь для сохранения модели в 'save_path'.
-    """
-    # Инициализация наилучшей ошибки, если не задана
-    if "Best loss" not in variables:
-        variables["Best loss"] = float("inf")
-
-    current_loss = variables["epoch_loss"]
-
-    # Проверка, является ли текущая ошибка лучше наилучшей ошибки
-    if current_loss < variables["Best loss"]:
-        variables["Best loss"] = current_loss
-
-        # Сохранение модели
-        save_path = config.get("save_path", "best_model.pth")
-        torch.save(model.state_dict(), save_path)
-        print(f"Модель сохранена с лучшей ошибкой: {current_loss} на пути: {save_path}")
+    for key, value in metrics.items():
+        if isinstance(value, torch.Tensor):
+            if len(value.size()) > 0:
+                writer.add_scalar(f"{phase}/Mean/{key}", value.mean().item(), epoch)
+                for i, val in enumerate(value):
+                    class_name = class_names_dict[i + 1]
+                    writer.add_scalar(f"{phase}/{key}/{class_name}", val.item(), epoch)
+            else:
+                writer.add_scalar(f"{phase}/{key}", value.item(), epoch)

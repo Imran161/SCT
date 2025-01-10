@@ -1,11 +1,11 @@
 import torch
 import segmentation_models_pytorch as smp
+import numpy as np
 
 from src.metrics.metrics import DetectionMetrics
 from src.trainers.abstract_trainer import AbstractTrainer
 from src.setup_tools.experiment_setup import ExperimentSetup
 from src.trainers.trainer_functions import (
-    standart_batch_function,
     standart_logging_manager,
     standart_weight_saving_manager,
 )
@@ -14,6 +14,7 @@ from src.datamanager.coco_dataloaders import SINUSITE_COCODataLoader, KIDNEYS_CO
 from src.datamanager.coco_classes import (
     kidneys_base_classes,
     kidneys_pat_out_classes,
+    kidneys_segment_out_classes
 )
 
 
@@ -85,14 +86,14 @@ class Weight_opt_class:
 
 
 if __name__ == "__main__":
-    batch_size = 6
-    num_classes = 3
+    batch_size = 24
+    num_classes = 6
 
     params = {
-        "json_file_path": "/home/imran-nasyrov/export_pochky_code/29_11_split_kidneys",
+        "json_file_path": "/home/imran/data/mini_dataset", # "/home/imran/data/29_11_split_kidneys",
         "delete_list": [],
         "base_classes": kidneys_base_classes,
-        "out_classes": kidneys_pat_out_classes,
+        "out_classes": kidneys_segment_out_classes,
         "dataloader": True,
         "resize": (512, 512),
         "recalculate": False,
@@ -118,10 +119,15 @@ if __name__ == "__main__":
     print("len val_loader", len(val_loader))
     print("len train_loader", len(train_loader))
 
-    device = torch.device("cuda:2")
+    device = torch.device("cuda:0")
     print(device)
     print(torch.cuda.get_device_name(torch.cuda.current_device()))
 
+    use_class_weight = True
+    use_pixel_weight = True
+    use_pixel_opt = True
+    power = "26_12_test_code_weak"
+    
     exp_setup = ExperimentSetup(
         train_loader, total_train, pixel_total_train, batch_size, num_classes
     )
@@ -141,14 +147,20 @@ if __name__ == "__main__":
         all_weights_no_fon = None
         
     if pixel_all_class_weights is not None:
-        alpha_no_fon = np.array([arr[1:] for arr in alpha])
+        alpha_no_fon = np.array([arr[1:] for arr in pixel_all_class_weights])
         alpha_no_fon = torch.tensor(alpha_no_fon).to(device)
     else:
         alpha_no_fon = None
-        
-    use_weight_opt = True
+
+    class_names_dict = {
+        class_info["id"]: class_info["name"]
+        for class_info in kidneys_segment_out_classes
+    }
+    print("class_names_dict", class_names_dict)
+
+    classes = list(class_names_dict.keys())
     
-    if use_weight_opt:
+    if use_pixel_opt:
         weight_opt = Weight_opt_class(criterion, classes, None)
                     
     config = {
@@ -162,7 +174,7 @@ if __name__ == "__main__":
         "epochs": 120,
         "phases": ["train", "val"],
         "activation": torch.sigmoid,
-        "save_path": "SCT/best_models/best_model.pth",
+        # "save_path": "SCT/best_models/best_model.pth",
         # loss: ..., 
         "train_loss_parameters": (all_weights_no_fon, alpha_no_fon),
         "alpha_no_fon": alpha_no_fon,
@@ -170,7 +182,7 @@ if __name__ == "__main__":
         # "optimizer": torch.optim.Adam,
         "metrics": DetectionMetrics,
         "model_save_dir": "test_new_code/runs_kidneys",
-        "experiment_name": "test",
+        "experiment_name": experiment_name,
     }
 
     trainer = AbstractTrainer(dataloaders, config)

@@ -5,7 +5,7 @@ from torch.utils.tensorboard import SummaryWriter
 import warnings
 from sklearn.exceptions import UndefinedMetricWarning
 from tqdm import tqdm
-from utils.functions import (
+from src.trainers.trainer_functions import (
     standart_logging_manager,
     log_metrics,
     standart_model_configurate,
@@ -25,12 +25,26 @@ from ..losses.losses_cls import (
 from ..metrics.metrics import DetectionMetrics
 from .model_factory import ModelFactory
 
+from ..datamanager.coco_classes import (
+    kidneys_base_classes,
+    kidneys_pat_out_classes,
+    kidneys_segment_out_classes
+)
+
+
+class_names_dict = {
+    class_info["id"]: class_info["name"]
+    for class_info in kidneys_segment_out_classes
+}
+print("class_names_dict", class_names_dict)
+
+classes = list(class_names_dict.keys())
 
 class AbstractTrainer:
     def __init__(self, dataloaders, config):
         self.dataloaders = dataloaders
         self.config = config
-
+        
         self.variables = {
             "device": self.config.get("device", None),
             "num_classes": self.config.get("num_classes", 3),
@@ -50,6 +64,7 @@ class AbstractTrainer:
             "configurate_model": standart_model_configurate,
             "hyperparam_manager": None,
             "logging_manager": standart_logging_manager,
+            "log_metrics": log_metrics,
             "weight_saving_manager": standart_weight_saving_manager,
             "activation" : self.config.get("activation", torch.sigmoid),
             "loss_function": self.config.get(
@@ -84,20 +99,64 @@ class AbstractTrainer:
                 )
                 self.variables["epoch_loss"] = 0
                 self.variables["phase_losses"][phase] = 0.0
-
-                for batch in tqdm(dataloader, desc=f"Epoch {self.variables['current_epoch']} Phase {phase}"):
-                    self.process_batch(batch)
                     
+                with tqdm(total=len(dataloader), desc=f"Epoch {self.variables['current_epoch']} Phase {phase}", unit="batch") as pbar:
+                    # for batch in dataloader: так было
+                    #     self.process_batch(batch)
+                    #     pbar.set_postfix(**{'loss (batch)': self.variables["epoch_loss"].item()})
+                    #     pbar.update(1)
+                    for batch in dataloader:
+                        self.process_batch(batch)
+                        pbar.set_postfix(loss=self.variables["current_loss"].item() / (pbar.n + 1))
+                        pbar.update(1)
+                        
+                # average_phase_loss = self.variables["phase_losses"][phase] / len(dataloader)
+                # print(f"{phase.capitalize()} Average Loss: {average_phase_loss}")
+                print(f"{phase.capitalize()} Average Loss: {self.variables['phase_losses'][phase]}")
 
-                average_phase_loss = self.variables["phase_losses"][phase] / len(dataloader)
-                print(f"{phase.capitalize()} Average Loss: {average_phase_loss}")
 
                 metrics = self.compute_epoch_metrics(phase)
-                self.functions["log_metrics"](writer, phase, metrics, self.variables["current_epoch"])
+                self.functions["log_metrics"](writer, phase, metrics, self.variables["current_epoch"], self.variables["phase_losses"][phase])
                 self.functions["weight_saving_manager"](self.variables, self.functions["model"], self.config)
                 
+                print("metrics", metrics)
+                
                 if self.variables["weight_opt"]:
-                    alpha_no_fon = weight_opt.opt_pixel_weight(metrics["train_metrics"], self.variables["alpha_no_fon"])
+                    self.variables["alpha_no_fon"] = self.variables["weight_opt"].opt_pixel_weight(self.variables["train_metrics"], self.variables["alpha_no_fon"])
+
+                if self.variables["alpha_no_fon"] is not None:
+                    # print("class", class_names_dict[1])
+                    # print("alpha_no_fon pixel_pos_weights", alpha_no_fon[0])
+
+                    print(
+                        f"\nclass: {class_names_dict[1]}, pixel_pos_weights {self.variables['alpha_no_fon'][0][0]}"
+                    )
+                    print(
+                        f"class: {class_names_dict[2]}, pixel_pos_weights {self.variables['alpha_no_fon'][0][1]}"
+                    )
+                    print(
+                        f"class: {class_names_dict[3]}, pixel_pos_weights {self.variables['alpha_no_fon'][0][2]}\n"
+                    )
+
+                    print(
+                        f"class: {class_names_dict[1]}, pixel_neg_weights {self.variables['alpha_no_fon'][1][0]}"
+                    )
+                    print(
+                        f"class: {class_names_dict[2]}, pixel_neg_weights {self.variables['alpha_no_fon'][1][1]}"
+                    )
+                    print(
+                        f"class: {class_names_dict[3]}, pixel_neg_weights {self.variables['alpha_no_fon'][1][2]}\n"
+                    )
+
+                    print(
+                        f"class: {class_names_dict[1]}, pixel_class_weights {self.variables['alpha_no_fon'][2][0]}"
+                    )
+                    print(
+                        f"class: {class_names_dict[2]}, pixel_class_weights {self.variables['alpha_no_fon'][2][1]}"
+                    )
+                    print(
+                        f"class: {class_names_dict[3]}, pixel_class_weights {self.variables['alpha_no_fon'][2][2]}\n"
+                    )
 
 
             self.variables["current_epoch"] += 1
@@ -113,12 +172,11 @@ class AbstractTrainer:
         outputs = self.functions["activation"](outputs).clone()
 
         self.update_loss(targets, outputs)
-        self.variables["epoch_loss"] += self.variables["current_loss"].item()
-        current_phase = self.variables["current_phase"]
-        self.variables["phase_losses"][current_phase] += self.variables["current_loss"].item()
+        self.variables["phase_losses"][self.variables["current_phase"]] += self.variables["current_loss"] / len(self.dataloaders[self.variables["current_phase"]])
 
         self.functions["metrics_calculator"].update_counter(targets, outputs)
         self.optimize_step()
+
 
 
     def optimize_step(self):
@@ -129,11 +187,14 @@ class AbstractTrainer:
            
            
     def update_loss(self, inputs, outputs):
+        # if self.functions["loss_function"]:
+        #     self.variables["current_loss"] = self.functions["loss_function"].forward(
+        #         inputs, outputs
+        #     )
+        #     self.variables["epoch_loss"] += self.variables["current_loss"] / len(self.dataloaders[self.variables["current_phase"]]) # если есть это? Добавил / len(....)
+
         if self.functions["loss_function"]:
-            self.variables["current_loss"] = self.functions["loss_function"].forward(
-                inputs, outputs
-            )
-            self.variables["epoch_loss"] += self.variables["current_loss"]
+            self.variables["current_loss"] = self.functions["loss_function"].forward(inputs, outputs)
 
 
     def compute_epoch_metrics(self, phase):

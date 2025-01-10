@@ -127,3 +127,11 @@ kidneys_pat_out_classes = [
         "subtractive_masks": [],
     },
 ]
+
+
+kidneys_segment_out_classes = [{"name": "right_kidney_upper_segment_ID2","id": 1,"summable_masks": [2],"subtractive_masks": []},
+                           {"name": "right_kidney_middle_segment_ID3","id": 2,"summable_masks": [3],"subtractive_masks": []},
+                           {"name": "right_kidney_lower_segment_ID4","id": 3,"summable_masks": [4],"subtractive_masks": []},                          
+                           {"name": "left_kidney_upper_segment_ID6","id": 4,"summable_masks": [6],"subtractive_masks": []},
+                           {"name": "left_kidney_middle_segment_ID7","id": 5,"summable_masks": [7],"subtractive_masks": []},
+                           {"name": "left_kidney_lower_segment_ID8","id": 6,"summable_masks": [8],"subtractive_masks": []}]
