@@ -5,6 +5,11 @@ from torch.utils.tensorboard import SummaryWriter
 import warnings
 from sklearn.exceptions import UndefinedMetricWarning
 from tqdm import tqdm
+
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel
+from torch.utils.data import DataLoader, DistributedSampler
+
 from src.trainers.trainer_functions import (
     standart_logging_manager,
     log_metrics,
@@ -41,10 +46,21 @@ print("class_names_dict", class_names_dict)
 classes = list(class_names_dict.keys())
 
 class AbstractTrainer:
-    def __init__(self, dataloaders, config):
+    def __init__(self, dataloaders, config, rank=0, world_size=1):
         self.dataloaders = dataloaders
         self.config = config
-        
+        self.rank = rank
+        self.world_size = world_size
+        self.device = torch.device(f"cuda:{rank}")
+
+        # Initialize the process group for distributed training
+        dist.init_process_group(backend='nccl', rank=rank, world_size=world_size)
+
+        self.model = ModelFactory.create_model(config).to(self.device)
+        self.model = DistributedDataParallel(self.model, device_ids=[rank])
+
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=3e-4)
+
         self.variables = {
             "device": self.config.get("device", None),
             "num_classes": self.config.get("num_classes", 3),
@@ -60,7 +76,7 @@ class AbstractTrainer:
         }
 
         self.functions = {
-            "model": ModelFactory.create_model(config),
+            # "model": ModelFactory.create_model(config),
             "configurate_model": standart_model_configurate,
             "hyperparam_manager": None,
             "logging_manager": standart_logging_manager,
@@ -76,21 +92,26 @@ class AbstractTrainer:
             ),
         }
         
-        self.functions["optimizer"] = self.config.get(
-            "optimizer", torch.optim.Adam(self.functions["model"].parameters(), lr=3e-4)
-        )
+        # self.functions["optimizer"] = self.config.get(
+        #     "optimizer", torch.optim.Adam(self.functions["model"].parameters(), lr=3e-4)
+        #
+        # )
             
 
     def start_training(self):
         target_epoch = self.config["epochs"]
         self.variables["current_epoch"] = 0
-        self.functions["model"] = self.functions["model"].to(self.variables["device"])
+        # self.functions["model"] = self.functions["model"].to(self.variables["device"])
 
         experiment_name = self.config["experiment_name"]
         writer = self.functions["logging_manager"](self.config, experiment_name)
 
         while self.variables["current_epoch"] < target_epoch:
             for phase in self.config["phases"]:
+
+                if phase == 'train' and self.dataloaders[phase].sampler is not None: ######
+                    self.dataloaders[phase].sampler.set_epoch(self.variables["current_epoch"]) #####
+
                 self.variables["current_phase"] = phase
                 dataloader = self.dataloaders[self.variables["current_phase"]]
 
@@ -99,7 +120,7 @@ class AbstractTrainer:
                 )
                 self.variables["epoch_loss"] = 0
                 self.variables["phase_losses"][phase] = 0.0
-                    
+
                 with tqdm(total=len(dataloader), desc=f"Epoch {self.variables['current_epoch']} Phase {phase}", unit="batch") as pbar:
                     # for batch in dataloader: так было
                     #     self.process_batch(batch)
@@ -109,10 +130,14 @@ class AbstractTrainer:
                         self.process_batch(batch)
                         pbar.set_postfix(loss=self.variables["current_loss"].item() / (pbar.n + 1))
                         pbar.update(1)
-                        
-                # average_phase_loss = self.variables["phase_losses"][phase] / len(dataloader)
-                # print(f"{phase.capitalize()} Average Loss: {average_phase_loss}")
-                print(f"{phase.capitalize()} Average Loss: {self.variables['phase_losses'][phase]}")
+
+                # print(f"{phase.capitalize()} Average Loss: {self.variables['phase_losses'][phase]}")
+
+
+                self.reduce_epoch_loss()
+
+                if self.rank == 0:
+                    print(f"Epoch {self.variables['current_epoch']} Phase {phase} - Global Loss: {self.variables['global_epoch_loss']}")
 
 
                 metrics = self.compute_epoch_metrics(phase)
@@ -209,3 +234,10 @@ class AbstractTrainer:
     
     def predict(self, inputs):
         return self.functions["model"](inputs)
+
+
+    def reduce_epoch_loss(self):
+        """Вычисляет средний глобальный лосс по всем процессам."""
+        loss_tensor = torch.tensor(self.variables["epoch_loss"], device=self.device)
+        dist.all_reduce(loss_tensor, op=dist.ReduceOp.SUM)
+        self.variables["global_epoch_loss"] = loss_tensor.item() / self.world_size

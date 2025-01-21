@@ -21,6 +21,7 @@ class JsonHandler(Dataset):
         self.resize = params_dict.get("resize", None)
         self.recalculate = params_dict.get("recalculate", False)
         self.delete_null = params_dict.get("delete_null", False)
+        self.empty_percentage = params_dict.get("empty_percentage", 0)
 
         self.split_category = split_category
 
@@ -158,6 +159,9 @@ class JsonHandler(Dataset):
         if self._all_img_list is None:
             self._all_img_list = []
 
+        annotated_images = []
+        empty_images = []
+
         for img_id in imgIds:
             anns_ids = self.coco.getAnnIds(imgIds=img_id, catIds=self.catIDs)
             anns = self.coco.loadAnns(anns_ids)
@@ -174,12 +178,37 @@ class JsonHandler(Dataset):
                     save = False
                     break
 
-            if save:
-                if self.split_category == "val":
-                    self._val_list.append(img_id)
-                else:
-                    self._train_list.append(img_id)
-                self._all_img_list.append(img_id)
+            # было
+            # if save:
+            #     if self.split_category == "val":
+            #         self._val_list.append(img_id)
+            #     else:
+            #         self._train_list.append(img_id)
+            #     self._all_img_list.append(img_id)
+
+            # стало
+            # Если изображение без аннотаций, добавляем его в список пустых
+            if save and len(anns) == 0:
+                empty_images.append(img_id)
+            elif save:
+                annotated_images.append(img_id)
+
+        # Рассчитываем количество пустых изображений
+        total_images = len(annotated_images) + len(empty_images)
+        num_empty_images = int(total_images * self.empty_percentage)
+
+        # Ограничиваем количество пустых изображений
+        selected_empty_images = empty_images[:num_empty_images]
+        selected_annotated_images = annotated_images[: total_images - num_empty_images]
+
+        if self.split_category == "val":
+            self._val_list.extend(selected_empty_images)
+            self._val_list.extend(selected_annotated_images)
+        else:
+            self._train_list.extend(selected_empty_images)
+            self._train_list.extend(selected_annotated_images)
+
+        self._all_img_list.extend(self._train_list + self._val_list)
 
         self._save_lists()
 

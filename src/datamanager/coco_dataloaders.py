@@ -6,6 +6,10 @@ import numpy as np
 import torch
 from torch.utils.data import ConcatDataset, DataLoader, Subset
 
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel
+from torch.utils.data import DataLoader, DistributedSampler
+
 from .coco_classes import (
     SCT_base_classes,
     SCT_out_classes,
@@ -14,8 +18,10 @@ from .json_handler import JsonHandler
 
 
 class KIDNEYS_COCODataLoader:
-    def __init__(self, json_params):
+    def __init__(self, json_params, num_processes=1, rank=0):
         self.json_params = json_params
+        self.num_processes = num_processes
+        self.rank = rank
         self.list_out_classes = None
 
     @staticmethod
@@ -104,9 +110,17 @@ class KIDNEYS_COCODataLoader:
         concat_train_data = ConcatDataset(all_train_data)
         concat_val_data = ConcatDataset(all_val_data)
 
+        train_sampler = DistributedSampler(
+            concat_train_data, num_replicas=self.num_processes, rank=self.rank
+        )
+        val_sampler = DistributedSampler(
+            concat_val_data, num_replicas=self.num_processes, rank=self.rank
+        )
+
         train_loader = DataLoader(
             concat_train_data,
             batch_size=batch_size,
+            sampler=train_sampler,
             shuffle=True,
             num_workers=4,
             collate_fn=self.custom_collate_fn,
@@ -114,6 +128,7 @@ class KIDNEYS_COCODataLoader:
         val_loader = DataLoader(
             concat_val_data,
             batch_size=batch_size,
+            sampler=val_sampler,
             shuffle=False,
             num_workers=4,
             collate_fn=self.custom_collate_fn,

@@ -85,7 +85,19 @@ class Weight_opt_class:
         return pixel_all_class_weights
 
 
+def run_distributed_training(rank, world_size, dataloaders, config):
+    dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
+    torch.cuda.set_device(rank)
+
+    trainer = AbstractTrainer(dataloaders, config, rank, world_size)
+    trainer.start_training()
+
+    dist.destroy_process_group()
+
+
 if __name__ == "__main__":
+    torch.set_num_threads(1)
+
     batch_size = 24
     num_classes = 6
 
@@ -185,5 +197,8 @@ if __name__ == "__main__":
         "experiment_name": experiment_name,
     }
 
-    trainer = AbstractTrainer(dataloaders, config)
+    rank = int(os.environ["RANK"])
+    world_size = int(os.environ["WORLD_SIZE"])
+    trainer = AbstractTrainer(dataloaders, config, rank, world_size)
     trainer.start_training()
+    # trainer.cleanup()
